@@ -61,3 +61,27 @@ Git-/Teststeuerung haben Vorrang vor Tokenersparnis.
   Scope, Ergebnisvertrag, Akzeptanzkriterien).
 - `COMPLETED` heißt „Ergebnisvertrag erfüllt", nicht „fachlich freigegeben".
 - Versionierbare Zustände gehören ins Repo, nie nur lokal oder in einen Chat.
+
+## Auftragsabschluss — Pflicht-Footer
+
+Am **Ende jedes Auftrags** gibt Claude Code einen standardisierten Footer aus —
+auch bei Abbruch (`BLOCKED`/`FAILED`):
+
+```
+Auftrag: BRIDGE-<xxx>
+Lauf:    RUN-<YY>
+Status:  <COMPLETED | BLOCKED | FAILED | REVIEW_REQUIRED>
+```
+
+Regeln:
+
+- **`BRIDGE-<xxx>`** stammt aus dem Auftrag (der Steuerprozess vergibt die
+  Paketnummer). Claude Code **bestätigt** sie nur und erfindet keine.
+- **`RUN-<YY>`** ist die fortlaufende Lauf-ID desselben Pakets, zweistellig
+  (`RUN-01`, `RUN-02`, …). Erster Durchlauf = `RUN-01`; bei Fortsetzung (z. B.
+  nach Usage-Limit, Abbruch, Rechnerwechsel) die nächste Nummer.
+- Solange die automatische Lauf-Zählung nicht implementiert ist (BRIDGE-004 /
+  BRIDGE-009), nutzt Claude Code `RUN-01` und zählt nur hoch, wenn der Auftrag
+  ausdrücklich eine Fortsetzung nennt. **Keine höhere Nummer erfinden**
+  (fail-closed).
+- Nummernräume bleiben getrennt: niemals `DORF-xxx` im Footer verwenden.
