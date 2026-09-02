@@ -78,12 +78,12 @@ Vergabe aus dem Repo (→ BRIDGE-005/009), CLI-Gesamtwerkzeug (→ BRIDGE-006).
 
 ## Akzeptanzkriterien
 
-- [ ] `state-model.yaml` unverändert als einzige Übergangsquelle genutzt
-- [ ] `is_allowed` / `assert_transition` verhalten sich fail-closed
-- [ ] CLI liefert ALLOWED/DENIED mit korrekten Exit-Codes
-- [ ] `python -m unittest discover -s tests` ist grün
-- [ ] keine Übergangstabelle im Code hartkodiert
-- [ ] Pflicht-Footer am Ende ausgegeben
+- [x] `state-model.yaml` unverändert als einzige Übergangsquelle genutzt
+- [x] `is_allowed` / `assert_transition` verhalten sich fail-closed
+- [x] CLI liefert ALLOWED/DENIED mit korrekten Exit-Codes
+- [x] `python -m unittest discover -s tests` ist grün
+- [x] keine Übergangstabelle im Code hartkodiert
+- [x] Pflicht-Footer am Ende ausgegeben
 
 ## Nächster Auftrag
 

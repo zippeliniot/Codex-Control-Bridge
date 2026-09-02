@@ -1,0 +1,3 @@
+# Laufzeitabhängigkeit der Codex Control Bridge (BRIDGE-004).
+# Tests nutzen ausschließlich die Python-Standardbibliothek (unittest).
+pyyaml>=6.0

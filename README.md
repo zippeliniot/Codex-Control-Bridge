@@ -72,6 +72,24 @@ Arbeitspakete: siehe [`work-packages/`](work-packages/).
 
 ---
 
+## Zustandsmodell
+
+Die gültigen Zustände und erlaubten Übergänge stehen verbindlich in
+[`schemas/state-model.yaml`](schemas/state-model.yaml) (SSOT). Der ausführbare
+Übergangs-Validator liegt in
+[`src/bridge/state_machine.py`](src/bridge/state_machine.py) und liest die
+Übergänge ausschließlich aus dieser Datei (keine hartkodierte Tabelle).
+
+```
+python src/bridge/state_machine.py CREATED READY    # -> ALLOWED  (Exit 0)
+python src/bridge/state_machine.py CREATED RUNNING   # -> DENIED   (Exit 1)
+```
+
+Laufzeitabhängigkeit: `pyyaml` (siehe [`requirements.txt`](requirements.txt)).
+Tests: `python -m unittest discover -s tests`.
+
+---
+
 ## Referenzprojekt Dorfschaft
 
 Dorfschaft ist **ausschließlich** das erste spätere Referenz- und
