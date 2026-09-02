@@ -101,13 +101,13 @@ automatische Verknüpfung Ergebnis→Zustandswechsel (Orchestrierung) → späte
 
 ## Akzeptanzkriterien
 
-- [ ] Aufträge/Ergebnisse werden validiert abgelegt (kein Überschreiben)
-- [ ] Zustandswechsel nur über BRIDGE-004-Validator; event_type aus Map-Datei
-- [ ] Auditspur append-only, jede Zeile schemakonform
-- [ ] `next_run_id` deterministisch aus dem Dateisystem
-- [ ] alle Tests grün, hermetisch (kein Schreiben ins echte Repo)
-- [ ] fail-closed bei allen genannten Fehlerfällen
-- [ ] Pflicht-Footer am Ende
+- [x] Aufträge/Ergebnisse werden validiert abgelegt (kein Überschreiben)
+- [x] Zustandswechsel nur über BRIDGE-004-Validator; event_type aus Map-Datei
+- [x] Auditspur append-only, jede Zeile schemakonform
+- [x] `next_run_id` deterministisch aus dem Dateisystem
+- [x] alle Tests grün, hermetisch (kein Schreiben ins echte Repo)
+- [x] fail-closed bei allen genannten Fehlerfällen
+- [x] Pflicht-Footer am Ende
 
 ## Nächster Auftrag
 

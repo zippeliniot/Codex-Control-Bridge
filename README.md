@@ -90,6 +90,24 @@ Tests: `python -m unittest discover -s tests`.
 
 ---
 
+## Ablage & Validierung
+
+`src/bridge/store.py` legt Aufträge (`tasks/<id>/task.yaml`), Ergebnisse
+(`results/<id>/RUN-<yy>/result.yaml`) und die append-only Auditspur
+(`audit/audit.jsonl`) ab. Jedes Dokument wird gegen sein Schema geprüft
+(`jsonschema`, Draft 2020-12), Zustandswechsel laufen über den
+BRIDGE-004-Validator, der Audit-Ereignistyp stammt aus
+[`schemas/audit-event-map.yaml`](schemas/audit-event-map.yaml). Layout:
+[`docs/protocols/storage-layout.md`](docs/protocols/storage-layout.md).
+
+```
+python src/bridge/store.py create-task tasks/BRIDGE-042/task.yaml
+python src/bridge/store.py set-status BRIDGE-042 READY --actor steuerprozess
+python src/bridge/store.py next-run BRIDGE-042
+```
+
+---
+
 ## Referenzprojekt Dorfschaft
 
 Dorfschaft ist **ausschließlich** das erste spätere Referenz- und

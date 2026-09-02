@@ -1,3 +1,4 @@
-# Laufzeitabhängigkeit der Codex Control Bridge (BRIDGE-004).
+# Laufzeitabhängigkeiten der Codex Control Bridge.
 # Tests nutzen ausschließlich die Python-Standardbibliothek (unittest).
 pyyaml>=6.0
+jsonschema>=4.18
