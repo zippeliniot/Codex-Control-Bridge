@@ -14,3 +14,10 @@ Grundlage: Abschnitte 5 (Auftragsschema), 6 (Ergebnisformat) und 11
 
 Hinweis: Beispielaufträge und ein Validierungsskript sind bewusst noch nicht
 Teil der Schema-Definition; sie folgen in BRIDGE-005 (Ablage/Validierung).
+
+Zusätzlich (BRIDGE-004):
+
+| Datei                      | Definiert in | Status |
+|----------------------------|--------------|--------|
+| `state-model.yaml`         | BRIDGE-004   | vorhanden |
+| `audit-event.schema.yaml`  | BRIDGE-004   | vorhanden |

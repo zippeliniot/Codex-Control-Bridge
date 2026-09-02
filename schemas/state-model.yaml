@@ -1,0 +1,50 @@
+# Codex Control Bridge - Zustandsmodell (maßgeblich / SSOT)
+# BRIDGE-004 . Konzept-Abschnitt 5 + 7
+#
+# Diese Datei ist die EINZIGE Quelle der erlaubten Zustandsübergänge.
+# Der Validator (src/bridge/state_machine.py) liest ausschließlich diese Datei;
+# die Übergänge werden NICHT im Code hartkodiert.
+#
+# Fail-closed: Ein Übergang ist nur erlaubt, wenn er hier ausdrücklich gelistet ist.
+# Unbekannte Zustände oder nicht gelistete Übergänge werden abgelehnt.
+
+schema_version: "1.0"
+kind: "bridge_state_model"
+
+initial_state: CREATED
+
+# Alle gültigen Zustände (Konzept-Abschnitt 5)
+states:
+  - CREATED
+  - READY
+  - CLAIMED
+  - RUNNING
+  - INTERRUPTED
+  - WAITING_FOR_RESUME
+  - COMPLETED
+  - FAILED
+  - BLOCKED
+  - REVIEW_REQUIRED
+  - APPROVAL_REQUIRED
+  - ARCHIVED
+
+# Endzustände (keine weiteren Übergänge)
+terminal_states:
+  - ARCHIVED
+
+# Erlaubte Übergänge: von-Zustand -> Liste erlaubter Ziel-Zustände.
+# COMPLETED bedeutet "Ergebnisvertrag erfüllt", NICHT fachlich freigegeben;
+# daher ist COMPLETED nicht terminal, sondern kann in Review/Archiv übergehen.
+transitions:
+  CREATED:            [READY, BLOCKED, ARCHIVED]
+  READY:              [CLAIMED, BLOCKED, ARCHIVED]
+  CLAIMED:            [RUNNING, BLOCKED, FAILED, ARCHIVED]
+  RUNNING:            [COMPLETED, FAILED, BLOCKED, INTERRUPTED, REVIEW_REQUIRED, APPROVAL_REQUIRED]
+  INTERRUPTED:        [WAITING_FOR_RESUME, FAILED, BLOCKED, ARCHIVED]
+  WAITING_FOR_RESUME: [CLAIMED, RUNNING, BLOCKED, ARCHIVED]
+  REVIEW_REQUIRED:    [COMPLETED, APPROVAL_REQUIRED, RUNNING, FAILED, BLOCKED, ARCHIVED]
+  APPROVAL_REQUIRED:  [COMPLETED, RUNNING, FAILED, BLOCKED, ARCHIVED]
+  COMPLETED:          [REVIEW_REQUIRED, ARCHIVED]
+  FAILED:             [READY, BLOCKED, ARCHIVED]
+  BLOCKED:            [READY, FAILED, ARCHIVED]
+  ARCHIVED:           []

@@ -1,0 +1,81 @@
+# Codex Control Bridge - Audit-Ereignis-Schema
+# BRIDGE-004 . Konzept-Abschnitt 10
+#
+# Ein einzelnes, nachvollziehbares Ereignis der Auditspur.
+# JSON Schema (Draft 2020-12) in YAML-Form, additionalProperties: false (fail-closed).
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://github.com/zippeliniot/Codex-Control-Bridge/schemas/audit-event.schema.yaml"
+title: "Codex Control Bridge Audit Event"
+description: "Einzelnes Ereignis der Auditspur über Zustandsänderungen und Aktionen."
+type: object
+additionalProperties: false
+
+required:
+  - event_type
+  - timestamp
+  - actor
+  - bridge_task_id
+
+properties:
+  event_type:
+    description: "Art des Ereignisses."
+    type: string
+    enum:
+      - TASK_CREATED
+      - TASK_CLAIMED
+      - TASK_STARTED
+      - TASK_INTERRUPTED
+      - TASK_RESUMED
+      - TASK_COMPLETED
+      - TASK_FAILED
+      - TASK_BLOCKED
+      - TASK_ARCHIVED
+      - REVIEW_REQUESTED
+      - APPROVAL_REQUESTED
+      - RESULT_WRITTEN
+      - COMMIT_CREATED
+      - PUSH_COMPLETED
+
+  timestamp:
+    description: "Zeitpunkt des Ereignisses (ISO 8601 / RFC 3339)."
+    type: string
+    format: date-time
+
+  actor:
+    description: "Auslösende Instanz/Akteur (z. B. claude-code, codex, steuerprozess)."
+    type: string
+    minLength: 1
+
+  machine:
+    description: "Physische Maschine oder Umgebung (z. B. HAM11/HAM01) oder null."
+    type: ["string", "null"]
+    default: null
+
+  bridge_task_id:
+    description: "Betroffener Auftrag."
+    type: string
+    pattern: "^BRIDGE-[0-9]{3,}$"
+
+  run_id:
+    description: "Betroffener Lauf (RUN-01, ...) oder null bei laufunabhängigen Ereignissen."
+    type: ["string", "null"]
+    pattern: "^RUN-[0-9]{2,}$"
+    default: null
+
+  old_state:
+    description: "Vorheriger Zustand (bei Zustandswechseln), sonst null."
+    type: ["string", "null"]
+    enum: [CREATED, READY, CLAIMED, RUNNING, INTERRUPTED, WAITING_FOR_RESUME, COMPLETED, FAILED, BLOCKED, REVIEW_REQUIRED, APPROVAL_REQUIRED, ARCHIVED, null]
+    default: null
+
+  new_state:
+    description: "Neuer Zustand (bei Zustandswechseln), sonst null."
+    type: ["string", "null"]
+    enum: [CREATED, READY, CLAIMED, RUNNING, INTERRUPTED, WAITING_FOR_RESUME, COMPLETED, FAILED, BLOCKED, REVIEW_REQUIRED, APPROVAL_REQUIRED, ARCHIVED, null]
+    default: null
+
+  reason:
+    description: "Optionale Begründung/Notiz zum Ereignis."
+    type: ["string", "null"]
+    default: null
