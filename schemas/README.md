@@ -6,7 +6,7 @@ Verbindliche Schemas der Codex Control Bridge. Geschrieben als JSON Schema
 | Datei                 | Definiert in | Status |
 |-----------------------|--------------|--------|
 | `task.schema.yaml`    | BRIDGE-002   | vorhanden |
-| `result.schema.yaml`  | BRIDGE-003   | offen |
+| `result.schema.yaml`  | BRIDGE-003   | vorhanden |
 | `project.schema.yaml` | BRIDGE-010   | offen |
 
 Grundlage: Abschnitte 5 (Auftragsschema), 6 (Ergebnisformat) und 11
