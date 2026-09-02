@@ -21,3 +21,9 @@ Zusätzlich (BRIDGE-004):
 |----------------------------|--------------|--------|
 | `state-model.yaml`         | BRIDGE-004   | vorhanden |
 | `audit-event.schema.yaml`  | BRIDGE-004   | vorhanden |
+
+Zusätzlich (BRIDGE-005):
+
+| Datei                     | Definiert in | Status |
+|---------------------------|--------------|--------|
+| `audit-event-map.yaml`    | BRIDGE-005   | vorhanden |

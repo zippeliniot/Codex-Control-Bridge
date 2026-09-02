@@ -23,9 +23,11 @@ properties:
     type: string
     enum:
       - TASK_CREATED
+      - TASK_READY
       - TASK_CLAIMED
       - TASK_STARTED
       - TASK_INTERRUPTED
+      - TASK_WAITING_FOR_RESUME
       - TASK_RESUMED
       - TASK_COMPLETED
       - TASK_FAILED

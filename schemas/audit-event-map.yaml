@@ -1,0 +1,32 @@
+# Codex Control Bridge - Zuordnung Zustandswechsel -> Audit-Ereignistyp (SSOT)
+# BRIDGE-005 . Konzept-Abschnitt 10
+#
+# Der Ablage-/Validierungs-Code (BRIDGE-005) leitet den event_type eines
+# Zustandswechsels ausschließlich aus dieser Datei ab - keine Hartkodierung.
+#
+# Logik:
+#   1) Liegt der AUSGANGSzustand in from_state_override -> dieser event_type.
+#      (Damit zählt jeder Übergang AUS WAITING_FOR_RESUME als Wiederaufnahme.)
+#   2) Sonst -> by_new_state[<neuer Zustand>].
+#
+# Der initiale Zustand CREATED entsteht nur bei der Auftragsanlage und wird
+# dort direkt mit TASK_CREATED protokolliert (nicht über diese Tabelle).
+
+schema_version: "1.0"
+kind: "bridge_audit_event_map"
+
+by_new_state:
+  READY:              TASK_READY
+  CLAIMED:            TASK_CLAIMED
+  RUNNING:            TASK_STARTED
+  INTERRUPTED:        TASK_INTERRUPTED
+  WAITING_FOR_RESUME: TASK_WAITING_FOR_RESUME
+  COMPLETED:          TASK_COMPLETED
+  FAILED:             TASK_FAILED
+  BLOCKED:            TASK_BLOCKED
+  REVIEW_REQUIRED:    REVIEW_REQUESTED
+  APPROVAL_REQUIRED:  APPROVAL_REQUESTED
+  ARCHIVED:           TASK_ARCHIVED
+
+from_state_override:
+  WAITING_FOR_RESUME: TASK_RESUMED

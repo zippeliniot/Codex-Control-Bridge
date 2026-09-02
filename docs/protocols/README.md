@@ -10,3 +10,5 @@ Geplante Inhalte:
 - Ereignisformat — BRIDGE-008 / Stufe 3
 
 In BRIDGE-001 bewusst noch ohne Detailinhalt.
+
+Vorhanden (BRIDGE-005): `storage-layout.md` — Ablage-Layout der Stufe 1.
