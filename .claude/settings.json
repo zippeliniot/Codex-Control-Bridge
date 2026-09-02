@@ -4,10 +4,8 @@
     "deny": [
       "Read(//wsl.localhost/**)",
       "Edit(//wsl.localhost/**)",
-      "Write(//wsl.localhost/**)",
       "Read(//wsl$/**)",
       "Edit(//wsl$/**)",
-      "Write(//wsl$/**)",
       "Bash(wsl:*)",
       "Bash(wsl.exe:*)",
       "Bash(sudo:*)",
