@@ -85,3 +85,12 @@ Regeln:
   ausdrücklich eine Fortsetzung nennt. **Keine höhere Nummer erfinden**
   (fail-closed).
 - Nummernräume bleiben getrennt: niemals `DORF-xxx` im Footer verwenden.
+
+## Python-Umgebung (verbindlich)
+
+- Python-Arbeit läuft **immer im repo-lokalen `.venv`** im Repo-Wurzelverzeichnis,
+  **niemals** in einem fremden/aktiven venv eines anderen Projekts.
+- Anlegen: `python -m venv .venv` (ist in `.gitignore`, wird nicht versioniert).
+- Abhängigkeiten nur aus `requirements.txt` in dieses `.venv` installieren.
+- Ist kein Python vorhanden → fail-closed: anhalten und melden, nicht selbst
+  installieren (Systemänderung nur durch den Menschen).
