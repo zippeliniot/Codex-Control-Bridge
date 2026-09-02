@@ -94,3 +94,29 @@ Regeln:
 - Abhängigkeiten nur aus `requirements.txt` in dieses `.venv` installieren.
 - Ist kein Python vorhanden → fail-closed: anhalten und melden, nicht selbst
   installieren (Systemänderung nur durch den Menschen).
+
+## Checkpoint & Resume (verbindlich)
+
+Aufträge können mitten im Lauf abbrechen (z. B. Usage-Limit des Modells,
+Rechnerwechsel). Der Wiederaufsetzpunkt muss den Abbruch überleben und **im
+Repository** liegen — niemals nur in der Chat-/Claude-Code-Sitzung.
+
+Regeln für jeden Auftrag:
+
+1. **In kleinen Schritten committen.** Jeder abgeschlossene Teilschritt ist ein
+   eigener Commit mit klarer Nachricht. Keine großen, uncommitteten Blöcke.
+2. **Arbeitspaket ist das Checkpoint-Register.** In `work-packages/BRIDGE-xxx.md`
+   wird jedes erfüllte Akzeptanzkriterium `[ ]` → `[x]` abgehakt und **mit
+   committet**. Der Wiederaufsetzpunkt ist damit ablesbar: das erste noch offene
+   Kriterium, aufsetzend auf dem letzten Commit.
+3. **Wiederaufnahme.** Ein neuer Lauf liest das Arbeitspaket (offene Haken) und
+   `git log` seit Auftragsbeginn, setzt am ersten offenen Punkt fort und erhöht
+   die Lauf-ID (`RUN-02`, …). Der Steuerprozess vermerkt
+   `WAITING_FOR_RESUME → RUNNING`; bei Bedarf trägt `resume_hint` im Ergebnis die
+   feinere Notiz.
+4. **Vor einem Maschinenwechsel** muss der Stand vollständig committet und
+   gepusht sein (`handover-check`), sonst geht der Wiederaufsetzpunkt verloren.
+
+Hinweis: Die *automatische* Erkennung eines toten Executors und das selbsttätige
+Setzen von `INTERRUPTED` übernehmen später Watcher/Runner (BRIDGE-008/009). Bis
+dahin sichern diese Regeln die Wiederaufnahme bereits in Stufe 1.
