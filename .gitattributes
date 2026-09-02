@@ -1,0 +1,22 @@
+# Zeilenenden maschinenübergreifend normalisieren (HAM11 / DES11).
+# Textdateien werden im Repo als LF gespeichert; das verhindert CRLF/LF-Churn
+# zwischen den beiden Windows-Maschinen.
+
+* text=auto eol=lf
+
+# Explizit binär (keine Zeilenenden-Konvertierung)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.zip binary
+*.gz binary
+
+# Windows-spezifische Skripte behalten CRLF, damit sie unter Windows sauber laufen
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Unix-Skripte immer LF
+*.sh text eol=lf

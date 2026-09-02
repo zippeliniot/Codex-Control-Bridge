@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "deny": [
+      "Read(//wsl.localhost/**)",
+      "Edit(//wsl.localhost/**)",
+      "Write(//wsl.localhost/**)",
+      "Read(//wsl$/**)",
+      "Edit(//wsl$/**)",
+      "Write(//wsl$/**)",
+      "Bash(wsl:*)",
+      "Bash(wsl.exe:*)",
+      "Bash(sudo:*)",
+      "Bash(apt:*)",
+      "Bash(apt-get:*)",
+      "Bash(dnf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)"
+    ]
+  }
+}
