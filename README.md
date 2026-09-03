@@ -125,11 +125,20 @@ PYTHONPATH=src python -m bridge <kommando>        # alternativ
 | `task list` | alle Aufträge mit Status |
 | `task set-status <id> <STATE> --actor <a> [--machine <m>] [--reason <r>]` | Zustandswechsel |
 | `result write <result.yaml>` | Ergebnis ablegen |
+| `result import <BRIDGE-id> --status <STATE> [--from <draft.yaml>] [--base-head <sha>] [--run-id <RUN-YY>] …` | Ergebnis aus dem Executor-Kontext übernehmen |
 | `next-run <BRIDGE-id>` | nächste Lauf-ID |
 | `audit show [<BRIDGE-id>]` | Auditspur (optional gefiltert) |
 | `resume <BRIDGE-id>` | Wiederaufsetz-Hilfe (rein lesend) |
 
 Exit-Codes: `0` ok, `1` Fachfehler/fail-closed, `2` Nutzungsfehler.
+
+`result import` (`src/bridge/importer.py`) ermittelt die **objektiven** Felder
+(Repository/Branch/HEAD, ggf. Commits und geänderte Dateien ab `--base-head`,
+Zeitstempel, `project_id` aus dem Auftrag, `run_id` aus `next_run_id`)
+automatisch und übernimmt nur die **subjektiven** aus `--from <draft.yaml>` bzw.
+den Flags (Flag gewinnt). Der Git-Zugriff ist injizierbar (`git_info_fn`), die
+Tests laufen hermetisch ohne echtes Git. Fail-closed bei Git-Fehler, fehlendem
+Auftrag, Schemafehler oder bereits vorhandenem Lauf.
 
 ---
 

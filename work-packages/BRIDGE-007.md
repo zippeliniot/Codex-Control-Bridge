@@ -103,13 +103,13 @@ automatische Verknüpfung Ergebnis→Zustandswechsel → später/Runner.
 
 ## Akzeptanzkriterien
 
-- [ ] Objektive Felder (Git/Umgebung/Zeit) automatisch ermittelt
-- [ ] Subjektive Felder aus Entwurf/Flags übernommen (Flag gewinnt)
-- [ ] `project_id`/`run_id` konsistent aus Auftrag bzw. `next_run_id`
-- [ ] Ergebnis gegen Schema validiert und über die Engine abgelegt (kein Überschreiben)
-- [ ] Git-Zugriff injizierbar; Tests hermetisch ohne echtes Git
-- [ ] fail-closed bei Schemafehler/fehlendem Auftrag/vorhandenem Lauf/Git-Fehler
-- [ ] alle Tests grün; Pflicht-Footer am Ende
+- [x] Objektive Felder (Git/Umgebung/Zeit) automatisch ermittelt
+- [x] Subjektive Felder aus Entwurf/Flags übernommen (Flag gewinnt)
+- [x] `project_id`/`run_id` konsistent aus Auftrag bzw. `next_run_id`
+- [x] Ergebnis gegen Schema validiert und über die Engine abgelegt (kein Überschreiben)
+- [x] Git-Zugriff injizierbar; Tests hermetisch ohne echtes Git
+- [x] fail-closed bei Schemafehler/fehlendem Auftrag/vorhandenem Lauf/Git-Fehler
+- [x] alle Tests grün; Pflicht-Footer am Ende
 
 ## Nächster Auftrag
 
