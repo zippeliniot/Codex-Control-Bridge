@@ -92,13 +92,13 @@ Watcher → BRIDGE-008; Projektprofile → BRIDGE-010.
 
 ## Akzeptanzkriterien
 
-- [ ] Einheitliche CLI über der bestehenden Engine (keine Duplizierung)
-- [ ] Alle Subkommandos vorhanden, konsistente Exit-Codes (0/1/2)
-- [ ] `resume` zeigt Status, nächste Lauf-ID und offene Akzeptanzkriterien
-- [ ] keine neue Laufzeitabhängigkeit (nur stdlib)
-- [ ] erwartbare Fehler ohne Traceback, mit klarer Meldung
-- [ ] alle Tests grün, hermetisch (kein Schreiben ins echte Repo)
-- [ ] Pflicht-Footer am Ende
+- [x] Einheitliche CLI über der bestehenden Engine (keine Duplizierung)
+- [x] Alle Subkommandos vorhanden, konsistente Exit-Codes (0/1/2)
+- [x] `resume` zeigt Status, nächste Lauf-ID und offene Akzeptanzkriterien
+- [x] keine neue Laufzeitabhängigkeit (nur stdlib)
+- [x] erwartbare Fehler ohne Traceback, mit klarer Meldung
+- [x] alle Tests grün, hermetisch (kein Schreiben ins echte Repo)
+- [x] Pflicht-Footer am Ende
 
 ## Nächster Auftrag
 

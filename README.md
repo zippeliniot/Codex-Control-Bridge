@@ -108,6 +108,31 @@ python src/bridge/store.py next-run BRIDGE-042
 
 ---
 
+## CLI
+
+Einheitliches Werkzeug über der Engine (reine stdlib):
+
+```
+python src/bridge/cli.py --root . <kommando>     # aus dem Repo heraus
+PYTHONPATH=src python -m bridge <kommando>        # alternativ
+```
+
+| Kommando | Zweck |
+|---|---|
+| `validate <pfad>` | Task/Result gegen Schema prüfen |
+| `task create <task.yaml>` | Auftrag anlegen |
+| `task show <BRIDGE-id>` | Status + Kernfelder |
+| `task list` | alle Aufträge mit Status |
+| `task set-status <id> <STATE> --actor <a> [--machine <m>] [--reason <r>]` | Zustandswechsel |
+| `result write <result.yaml>` | Ergebnis ablegen |
+| `next-run <BRIDGE-id>` | nächste Lauf-ID |
+| `audit show [<BRIDGE-id>]` | Auditspur (optional gefiltert) |
+| `resume <BRIDGE-id>` | Wiederaufsetz-Hilfe (rein lesend) |
+
+Exit-Codes: `0` ok, `1` Fachfehler/fail-closed, `2` Nutzungsfehler.
+
+---
+
 ## Referenzprojekt Dorfschaft
 
 Dorfschaft ist **ausschließlich** das erste spätere Referenz- und
