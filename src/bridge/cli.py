@@ -18,10 +18,11 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from bridge import state_machine
+from bridge import importer, state_machine
 from bridge.store import Store, StoreError
 
-_ENGINE_ERRORS = (StoreError, state_machine.TransitionError, state_machine.ModelError)
+_ENGINE_ERRORS = (StoreError, state_machine.TransitionError, state_machine.ModelError,
+                  importer.ImporterError)
 
 
 # --------------------------------------------------------------------------- #
@@ -54,6 +55,20 @@ def _build_parser() -> argparse.ArgumentParser:
     result = sub.add_parser("result", help="Ergebnisse verwalten")
     rsub = result.add_subparsers(dest="result_cmd", required=True)
     rsub.add_parser("write", help="Ergebnis ablegen").add_argument("path")
+
+    imp = rsub.add_parser("import",
+                          help="Ergebnis aus dem Executor-Kontext übernehmen")
+    imp.add_argument("task_id")
+    imp.add_argument("--status", help="Ausgang des Laufs (oder aus dem Entwurf)")
+    imp.add_argument("--from", dest="draft_path", help="Entwurf (draft.yaml)")
+    imp.add_argument("--base-head", help="HEAD-SHA zu Laufbeginn")
+    imp.add_argument("--run-id", help="RUN-YY (Standard: next_run_id)")
+    imp.add_argument("--executor", default="claude-code")
+    imp.add_argument("--machine")
+    imp.add_argument("--environment")
+    imp.add_argument("--runtime")
+    imp.add_argument("--summary")
+    imp.add_argument("--started-at")
 
     sub.add_parser("next-run", help="nächste Lauf-ID").add_argument("task_id")
 
@@ -104,8 +119,30 @@ def _cmd_task(args, store) -> int:
 
 
 def _cmd_result(args, store) -> int:
+    if args.result_cmd == "import":
+        return _cmd_result_import(args, store)
     doc = store.write_result(args.path)  # result_cmd == "write"
     print(f"OK: Ergebnis {doc['bridge_task_id']} {doc['run_id']} abgelegt")
+    return 0
+
+
+def _cmd_result_import(args, store) -> int:
+    draft = importer.load_draft(args.draft_path) if args.draft_path else {}
+    status = args.status or draft.get("status")
+    if not status:
+        print("Nutzungsfehler: --status fehlt (weder Flag noch Entwurf).",
+              file=sys.stderr)
+        return 2
+    result = importer.import_result(
+        store, args.task_id, status,
+        run_id=args.run_id, draft=draft, base_head=args.base_head,
+        executor=args.executor, machine=args.machine,
+        environment=args.environment, runtime=args.runtime,
+        summary=args.summary, started_at=args.started_at,
+    )
+    path = (store.results_dir / result["bridge_task_id"]
+            / result["run_id"] / "result.yaml")
+    print(str(path))
     return 0
 
 
