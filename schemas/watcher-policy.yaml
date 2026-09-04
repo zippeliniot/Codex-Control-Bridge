@@ -1,0 +1,31 @@
+# Codex Control Bridge - Watcher-Policy (SSOT)
+# BRIDGE-008 . Steuert, welche automatischen Zustandswechsel der Watcher setzen darf.
+#
+# Der Watcher liest diese Datei; Verhalten wird NICHT im Code hartkodiert.
+# Er setzt Zustände nur mit --apply, nur die hier erlaubten Übergänge, und
+# niemals kritische Aktionen. Committen/Pushen bleibt beim Menschen.
+
+schema_version: "1.0"
+kind: "bridge_watcher_policy"
+
+# Sekunden ohne Heartbeat, ab denen ein Lauf als steckengeblieben gilt.
+heartbeat_timeout_seconds: 900
+
+# Nur Aufträge in diesen Zuständen werden automatisch weitergeführt.
+eligible_from_status:
+  - RUNNING
+
+# Fertiges Ergebnis erkannt -> Auftrag auf diesen Zielzustand führen.
+# (Ergebnis-Status -> Auftrags-Zielzustand; muss laut state-model.yaml erlaubt sein.)
+on_result_status:
+  COMPLETED:         COMPLETED
+  FAILED:            FAILED
+  BLOCKED:           BLOCKED
+  INTERRUPTED:       INTERRUPTED
+  REVIEW_REQUIRED:   REVIEW_REQUIRED
+  APPROVAL_REQUIRED: APPROVAL_REQUIRED
+
+# Toter/steckengebliebener Heartbeat -> Auftrag interruptieren.
+on_stale_heartbeat:
+  to_status: INTERRUPTED
+  audit_reason: "watcher: heartbeat älter als timeout"

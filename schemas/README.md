@@ -27,3 +27,10 @@ Zusätzlich (BRIDGE-005):
 | Datei                     | Definiert in | Status |
 |---------------------------|--------------|--------|
 | `audit-event-map.yaml`    | BRIDGE-005   | vorhanden |
+
+Zusätzlich (BRIDGE-008):
+
+| Datei                     | Definiert in | Status |
+|---------------------------|--------------|--------|
+| `heartbeat.schema.yaml`   | BRIDGE-008   | vorhanden |
+| `watcher-policy.yaml`     | BRIDGE-008   | vorhanden |

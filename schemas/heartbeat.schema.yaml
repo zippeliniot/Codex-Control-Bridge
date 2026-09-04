@@ -1,0 +1,42 @@
+# Codex Control Bridge - Heartbeat-Schema
+# BRIDGE-008 . Lebenszeichen eines laufenden Auftrags-Laufs.
+#
+# Eine lebendige Ausführungsinstanz aktualisiert diese Datei regelmäßig.
+# Bleibt last_seen älter als das Policy-Timeout, gilt der Lauf als steckengeblieben.
+# JSON Schema (Draft 2020-12) in YAML-Form, additionalProperties: false.
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://github.com/zippeliniot/Codex-Control-Bridge/schemas/heartbeat.schema.yaml"
+title: "Codex Control Bridge Heartbeat"
+description: "Lebenszeichen eines laufenden Auftrags-Laufs."
+type: object
+additionalProperties: false
+
+required:
+  - kind
+  - bridge_task_id
+  - run_id
+  - last_seen
+
+properties:
+  kind:
+    const: "bridge_heartbeat"
+  bridge_task_id:
+    type: string
+    pattern: "^BRIDGE-[0-9]{3,}$"
+  run_id:
+    type: string
+    pattern: "^RUN-[0-9]{2,}$"
+  last_seen:
+    description: "Zeitpunkt des letzten Lebenszeichens (ISO 8601 / RFC 3339)."
+    type: string
+    format: date-time
+  actor:
+    type: ["string", "null"]
+    default: null
+  machine:
+    type: ["string", "null"]
+    default: null
+  pid:
+    type: ["integer", "null"]
+    default: null
