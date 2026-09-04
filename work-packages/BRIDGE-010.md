@@ -65,13 +65,13 @@ und Read-only-Integrationstest → BRIDGE-011/012.
 
 ## Akzeptanzkriterien
 
-- [ ] Profil je Projekt unter projects/<id>/project.yaml, gegen Schema validiert
-- [ ] `read_only` als Pflichtfeld erzwungen
-- [ ] `load_profile`/`list_profiles`/`validate_profile` fail-closed
-- [ ] project_id-Konsistenz mit Verzeichnisname geprüft
-- [ ] Beispiele unter projects/examples/ nicht als echte Profile gezählt
-- [ ] CLI `project list/show/validate` mit korrekten Exit-Codes
-- [ ] alle Tests grün; Pflicht-Footer am Ende
+- [x] Profil je Projekt unter projects/<id>/project.yaml, gegen Schema validiert
+- [x] `read_only` als Pflichtfeld erzwungen
+- [x] `load_profile`/`list_profiles`/`validate_profile` fail-closed
+- [x] project_id-Konsistenz mit Verzeichnisname geprüft
+- [x] Beispiele unter projects/examples/ nicht als echte Profile gezählt
+- [x] CLI `project list/show/validate` mit korrekten Exit-Codes
+- [x] alle Tests grün; Pflicht-Footer am Ende
 
 ## Nächster Auftrag
 

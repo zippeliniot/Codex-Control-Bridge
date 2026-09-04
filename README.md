@@ -136,6 +136,9 @@ PYTHONPATH=src python -m bridge <kommando>        # alternativ
 | `run beat <BRIDGE-id> --actor <a> [--machine <m>]` | Heartbeat des aktuellen Laufs aktualisieren (an Checkpoints) |
 | `run finish <BRIDGE-id> --status <STATE> [--from <draft.yaml>] [--base-head <sha>] --actor <a> [--summary <s>]` | Lauf abschließen: Ergebnis-Import + Zustandswechsel in einem Schritt |
 | `run resume <BRIDGE-id> --actor <a> [--machine <m>]` | Lauf wiederaufnehmen (INTERRUPTED/WAITING_FOR_RESUME → RUNNING, neuer RUN) |
+| `project list` | bekannte Projekte (project_id + read_only + task_prefix) |
+| `project show <project_id>` | Kernfelder des Profils (unbekannt → Exit 1) |
+| `project validate <pfad>` | Profil gegen `project.schema.yaml` prüfen (ungültig → Exit 1) |
 
 Exit-Codes: `0` ok, `1` Fachfehler/fail-closed, `2` Nutzungsfehler.
 
@@ -207,6 +210,30 @@ python src/bridge/cli.py --root . run start  BRIDGE-042 --actor codex
 python src/bridge/cli.py --root . run beat   BRIDGE-042 --actor codex
 python src/bridge/cli.py --root . run finish BRIDGE-042 --status COMPLETED --actor codex --summary "…"
 python src/bridge/cli.py --root . run resume BRIDGE-042 --actor codex
+```
+
+---
+
+## Projektprofile (BRIDGE-010)
+
+Projektspezifische Regeln leben im **Profil**, nicht im Core: ein
+`projects/<id>/project.yaml` je Projekt, validiert gegen
+[`schemas/project.schema.yaml`](schemas/project.schema.yaml)
+(`read_only` ist Pflichtfeld). `src/bridge/profiles.py` stellt bereit:
+
+- `load_profile(root, project_id)` — lädt + validiert; fehlende Datei,
+  Schemafehler oder `project_id ≠ Verzeichnisname` → `ProfileError` (fail-closed).
+- `list_profiles(root)` — reale Profile, sortiert; `projects/examples/` zählt nicht.
+- `validate_profile(pfad_oder_dict, schema_dir)` — reine Schema-Validierung.
+
+BRIDGE-010 umfasst **nur Schema + Loader** — die Verdrahtung in Store/Runner
+(`task_prefix` erzwingen, `read_only`/`allowed_machines` prüfen) folgt in
+BRIDGE-011. Beispielprofil: `projects/examples/dorfschaft.project.yaml`.
+
+```
+python src/bridge/cli.py --root . project list
+python src/bridge/cli.py --root . project show codex-control-bridge
+python src/bridge/cli.py --root . project validate projects/codex-control-bridge/project.yaml
 ```
 
 ---
