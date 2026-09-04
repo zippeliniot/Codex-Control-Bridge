@@ -95,15 +95,15 @@ Projektprofile → BRIDGE-010.
 
 ## Akzeptanzkriterien
 
-- [ ] `run start/beat/finish/resume` vorhanden und über die Engine umgesetzt
-- [ ] `finish` = ein Schritt (Import + Zustandswechsel), fail-closed bei
+- [x] `run start/beat/finish/resume` vorhanden und über die Engine umgesetzt
+- [x] `finish` = ein Schritt (Import + Zustandswechsel), fail-closed bei
       unerlaubtem Übergang
-- [ ] `resume` fährt INTERRUPTED→WAITING_FOR_RESUME→RUNNING in einem Schritt,
+- [x] `resume` fährt INTERRUPTED→WAITING_FOR_RESUME→RUNNING in einem Schritt,
       neue RUN-ID, frischer Heartbeat
-- [ ] Heartbeat an Checkpoints koppelbar (`run beat`)
-- [ ] Runner führt nie Git-Aktionen aus
-- [ ] Zeit/Git injizierbar; Tests hermetisch
-- [ ] alle Tests grün; Pflicht-Footer am Ende
+- [x] Heartbeat an Checkpoints koppelbar (`run beat`)
+- [x] Runner führt nie Git-Aktionen aus
+- [x] Zeit/Git injizierbar; Tests hermetisch
+- [x] alle Tests grün; Pflicht-Footer am Ende
 
 ## Nächster Auftrag
 

@@ -132,6 +132,10 @@ PYTHONPATH=src python -m bridge <kommando>        # alternativ
 | `watch scan [--apply] [--actor <a>] [--machine <m>] [--task <id>]` | Ergebnisse/tote Heartbeats erkennen; mit `--apply` erlaubte Übergänge setzen |
 | `watch loop --interval <sek> [--apply] [--actor <a>] [--machine <m>]` | dasselbe wiederholt (bis Ctrl+C) |
 | `watch heartbeat <BRIDGE-id> <RUN-YY> [--actor <a>] [--machine <m>]` | Heartbeat eines Laufs schreiben/aktualisieren |
+| `run start <BRIDGE-id> --actor <a> [--machine <m>]` | Lauf starten (→ RUNNING, initialer Heartbeat) |
+| `run beat <BRIDGE-id> --actor <a> [--machine <m>]` | Heartbeat des aktuellen Laufs aktualisieren (an Checkpoints) |
+| `run finish <BRIDGE-id> --status <STATE> [--from <draft.yaml>] [--base-head <sha>] --actor <a> [--summary <s>]` | Lauf abschließen: Ergebnis-Import + Zustandswechsel in einem Schritt |
+| `run resume <BRIDGE-id> --actor <a> [--machine <m>]` | Lauf wiederaufnehmen (INTERRUPTED/WAITING_FOR_RESUME → RUNNING, neuer RUN) |
 
 Exit-Codes: `0` ok, `1` Fachfehler/fail-closed, `2` Nutzungsfehler.
 
@@ -166,12 +170,43 @@ Zeit (`now`) ist injizierbar → Tests hermetisch.
 `src/bridge/heartbeat.py` schreibt/liest die Heartbeat-Datei
 (`results/<id>/RUN-<yy>/heartbeat.json`, Schema
 [`heartbeat.schema.yaml`](schemas/heartbeat.schema.yaml)); das periodische
-Schlagen durch einen lebenden Executor kommt in BRIDGE-009.
+Schlagen durch einen lebenden Executor übernimmt der Runner (BRIDGE-009).
 
 ```
 python src/bridge/cli.py --root . watch scan
 python src/bridge/cli.py --root . watch scan --apply --actor watcher
 python src/bridge/cli.py --root . watch heartbeat BRIDGE-042 RUN-01 --actor codex
+```
+
+---
+
+## Runner (BRIDGE-009)
+
+`src/bridge/runner.py` orchestriert den Lauf-Lebenszyklus über die vorhandene
+Engine — **ohne** selbst inhaltliche Arbeit oder Git zu tun:
+
+- **`start`** — führt `CREATED→READY→CLAIMED→RUNNING` (nur fehlende Schritte,
+  jeder auditiert), legt `run_id = next_run_id` an und schreibt den initialen
+  Heartbeat.
+- **`beat`** — aktualisiert den Heartbeat des aktuellen Laufs (nur im Status
+  RUNNING); der Executor ruft dies an jedem Checkpoint/Commit.
+- **`finish`** — ein Schritt: Übergang `RUNNING→<status>` zuerst per `is_allowed`
+  prüfen, dann Ergebnis für den aktuellen Lauf über `importer.import_result`
+  schreiben, dann `set_status`. Nicht erlaubter Übergang → Fehler, nichts
+  geschrieben.
+- **`resume`** — ein Schritt `INTERRUPTED→WAITING_FOR_RESUME→RUNNING`
+  (Audit `TASK_WAITING_FOR_RESUME`, dann `TASK_RESUMED`), neuer `run_id`,
+  frischer Heartbeat; zeigt offene Akzeptanzkriterien und `resume_hint` aus dem
+  letzten Ergebnis.
+
+Der Runner führt **niemals** Git-Aktionen aus. Zeit (`now`) und Git
+(`git_info_fn`) sind injizierbar → Tests hermetisch.
+
+```
+python src/bridge/cli.py --root . run start  BRIDGE-042 --actor codex
+python src/bridge/cli.py --root . run beat   BRIDGE-042 --actor codex
+python src/bridge/cli.py --root . run finish BRIDGE-042 --status COMPLETED --actor codex --summary "…"
+python src/bridge/cli.py --root . run resume BRIDGE-042 --actor codex
 ```
 
 ---
