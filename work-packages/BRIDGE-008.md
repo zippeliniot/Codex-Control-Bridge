@@ -101,13 +101,13 @@ einen lebenden Executor → Runner (BRIDGE-009); Resume-Orchestrierung → BRIDG
 
 ## Akzeptanzkriterien
 
-- [ ] scan erkennt fertige Ergebnisse und tote Heartbeats
-- [ ] Schreiben nur mit `--apply`; ohne apply reiner Trockenlauf
-- [ ] nur Policy-Übergänge, zusätzlich durch state_machine geprüft
-- [ ] toter Heartbeat setzt nur Status (+Audit), erzeugt kein result.yaml
-- [ ] Zeit injizierbar; Tests hermetisch ohne echtes Warten
-- [ ] Watcher führt nie Git-Aktionen aus
-- [ ] alle Tests grün; Pflicht-Footer am Ende
+- [x] scan erkennt fertige Ergebnisse und tote Heartbeats
+- [x] Schreiben nur mit `--apply`; ohne apply reiner Trockenlauf
+- [x] nur Policy-Übergänge, zusätzlich durch state_machine geprüft
+- [x] toter Heartbeat setzt nur Status (+Audit), erzeugt kein result.yaml
+- [x] Zeit injizierbar; Tests hermetisch ohne echtes Warten
+- [x] Watcher führt nie Git-Aktionen aus
+- [x] alle Tests grün; Pflicht-Footer am Ende
 
 ## Nächster Auftrag
 
