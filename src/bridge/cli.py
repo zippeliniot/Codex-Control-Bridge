@@ -18,7 +18,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from bridge import heartbeat, importer, state_machine, watcher
+from bridge import heartbeat, importer, runner, state_machine, watcher
 from bridge.store import Store, StoreError
 
 _ENGINE_ERRORS = (StoreError, state_machine.TransitionError, state_machine.ModelError,
@@ -104,6 +104,34 @@ def _build_parser() -> argparse.ArgumentParser:
     whb.add_argument("run_id")
     whb.add_argument("--actor")
     whb.add_argument("--machine")
+
+    run = sub.add_parser("run", help="Lauf-Lebenszyklus: start/beat/finish/resume")
+    runsub = run.add_subparsers(dest="run_cmd", required=True)
+
+    rstart = runsub.add_parser("start", help="Lauf starten (-> RUNNING, initialer Heartbeat)")
+    rstart.add_argument("task_id")
+    rstart.add_argument("--actor", required=True)
+    rstart.add_argument("--machine")
+
+    rbeat = runsub.add_parser("beat", help="Heartbeat des aktuellen Laufs aktualisieren")
+    rbeat.add_argument("task_id")
+    rbeat.add_argument("--actor", required=True)
+    rbeat.add_argument("--machine")
+
+    rfin = runsub.add_parser("finish",
+                             help="Lauf abschließen (Ergebnis-Import + Zustandswechsel)")
+    rfin.add_argument("task_id")
+    rfin.add_argument("--status", required=True)
+    rfin.add_argument("--from", dest="draft_path", help="Entwurf (draft.yaml)")
+    rfin.add_argument("--base-head", help="HEAD-SHA zu Laufbeginn")
+    rfin.add_argument("--actor", required=True)
+    rfin.add_argument("--machine")
+    rfin.add_argument("--summary")
+
+    rres = runsub.add_parser("resume", help="Lauf wiederaufnehmen (-> RUNNING, neuer RUN)")
+    rres.add_argument("task_id")
+    rres.add_argument("--actor", required=True)
+    rres.add_argument("--machine")
     return parser
 
 
@@ -312,6 +340,42 @@ def _print_findings(findings, applied) -> None:
                   f"{f.from_status} -> {f.target}{note}")
 
 
+def _cmd_run(args, store) -> int:
+    if args.run_cmd == "start":
+        run_id = runner.start(store, args.task_id, args.actor, args.machine)
+        _print_run(store, args.task_id, run_id, "gestartet")
+        return 0
+    if args.run_cmd == "beat":
+        doc = runner.beat(store, args.task_id, actor=args.actor, machine=args.machine)
+        print(f"OK: Heartbeat {args.task_id} {doc['run_id']} "
+              f"last_seen={doc['last_seen']}")
+        return 0
+    if args.run_cmd == "finish":
+        draft = importer.load_draft(args.draft_path) if args.draft_path else {}
+        result, event = runner.finish(
+            store, args.task_id, args.status,
+            draft=draft, base_head=args.base_head,
+            actor=args.actor, machine=args.machine, summary=args.summary)
+        print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']}; "
+              f"Ergebnis {result['run_id']} abgelegt")
+        return 0
+    if args.run_cmd == "resume":
+        run_id = runner.resume(store, args.task_id, args.actor, args.machine)
+        _print_run(store, args.task_id, run_id, "wiederaufgenommen")
+        return 0
+    return 2  # vom Parser ausgeschlossen
+
+
+def _print_run(store, task_id, run_id, verb) -> None:
+    task = store.load_task(task_id)
+    print(f"OK: {task_id} {verb} (RUN={run_id}, status={task.get('status')})")
+    for item in runner.open_acceptance_criteria(store, task_id):
+        print(f"  - [ ] {item}")
+    hint = runner.last_resume_hint(store, task_id)
+    if hint:
+        print(f"resume_hint: {hint}")
+
+
 _DISPATCH = {
     "validate": _cmd_validate,
     "task": _cmd_task,
@@ -320,6 +384,7 @@ _DISPATCH = {
     "audit": _cmd_audit,
     "resume": _cmd_resume,
     "watch": _cmd_watch,
+    "run": _cmd_run,
 }
 
 
