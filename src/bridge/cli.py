@@ -18,7 +18,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from bridge import heartbeat, importer, runner, state_machine, watcher
+from bridge import heartbeat, importer, profiles, runner, state_machine, watcher
 from bridge.store import Store, StoreError
 
 _ENGINE_ERRORS = (StoreError, state_machine.TransitionError, state_machine.ModelError,
@@ -132,6 +132,12 @@ def _build_parser() -> argparse.ArgumentParser:
     rres.add_argument("task_id")
     rres.add_argument("--actor", required=True)
     rres.add_argument("--machine")
+
+    project = sub.add_parser("project", help="Projektprofile (Adapter)")
+    psub = project.add_subparsers(dest="project_cmd", required=True)
+    psub.add_parser("list", help="bekannte Projekte (project_id + read_only + task_prefix)")
+    psub.add_parser("show", help="Kernfelder eines Profils").add_argument("project_id")
+    psub.add_parser("validate", help="Profil gegen Schema prüfen").add_argument("path")
     return parser
 
 
@@ -376,6 +382,31 @@ def _print_run(store, task_id, run_id, verb) -> None:
         print(f"resume_hint: {hint}")
 
 
+def _cmd_project(args, store) -> int:
+    if args.project_cmd == "list":
+        ids = profiles.list_profiles(store.root)
+        if not ids:
+            print("(keine Profile)")
+        for pid in ids:
+            doc = profiles.load_profile(store.root, pid, schema_dir=store.schema_dir)
+            print(f"{doc['project_id']}\tread_only={doc['read_only']}\t"
+                  f"task_prefix={doc['task_prefix']}")
+        return 0
+    if args.project_cmd == "show":
+        doc = profiles.load_profile(store.root, args.project_id,
+                                    schema_dir=store.schema_dir)
+        for key in ("project_id", "description", "repository", "default_branch",
+                    "task_prefix", "read_only", "allowed_machines"):
+            if key in doc:
+                print(f"{key}: {doc[key]}")
+        return 0
+    if args.project_cmd == "validate":
+        doc = profiles.validate_profile(args.path, store.schema_dir)
+        print(f"OK: Profil {doc.get('project_id')} gültig ({args.path})")
+        return 0
+    return 2  # vom Parser ausgeschlossen
+
+
 _DISPATCH = {
     "validate": _cmd_validate,
     "task": _cmd_task,
@@ -385,6 +416,7 @@ _DISPATCH = {
     "resume": _cmd_resume,
     "watch": _cmd_watch,
     "run": _cmd_run,
+    "project": _cmd_project,
 }
 
 
