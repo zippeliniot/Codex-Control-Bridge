@@ -120,3 +120,16 @@ Regeln für jeden Auftrag:
 Hinweis: Die *automatische* Erkennung eines toten Executors und das selbsttätige
 Setzen von `INTERRUPTED` übernehmen später Watcher/Runner (BRIDGE-008/009). Bis
 dahin sichern diese Regeln die Wiederaufnahme bereits in Stufe 1.
+
+## Heartbeat an Checkpoints (verbindlich, sobald ein Auftrag unter dem Runner läuft)
+
+Wird ein Auftrag über den Runner ausgeführt, schlägt der Executor den Heartbeat
+an **jedem** committeten Teilschritt:
+
+```
+python src/bridge/cli.py run beat <BRIDGE-id> --actor claude-code
+```
+
+So bleiben die Schläge aus, sobald die Arbeit stirbt (z. B. Usage-Limit), und der
+Watcher erkennt den steckengebliebenen Lauf. Der Heartbeat ersetzt nicht das
+Committen — er begleitet es.
