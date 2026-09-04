@@ -1,0 +1,23 @@
+# Projektprofil der Codex Control Bridge selbst.
+schema_version: "1.0"
+kind: bridge_project_profile
+project_id: codex-control-bridge
+description: Die Bridge selbst (Entwicklungsprojekt).
+repository: Codex-Control-Bridge
+default_branch: main
+task_prefix: BRIDGE
+read_only: false
+allowed_machines: [HAM11, DES11]
+git_policy:
+  allow_push: true
+  allow_merge: false
+  allow_force_push: false
+  protected_branches: [main]
+test_policy:
+  command: "python -m unittest discover -s tests"
+  required: true
+handover_policy:
+  branch: main
+  require_clean: true
+migration_policy:
+  allow_production: false

@@ -1,0 +1,99 @@
+# Codex Control Bridge - Projektprofil-Schema
+# BRIDGE-010 . Konzept-Abschnitt 11/12
+#
+# Projektspezifische Regeln leben im Profil, NICHT im Core.
+# Ein Profil je Projekt unter projects/<id>/project.yaml.
+# JSON Schema (Draft 2020-12) in YAML-Form, additionalProperties: false (fail-closed).
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://github.com/zippeliniot/Codex-Control-Bridge/schemas/project.schema.yaml"
+title: "Codex Control Bridge Project Profile"
+description: "Projektspezifische Regeln (Adapter) außerhalb des projektunabhängigen Core."
+type: object
+additionalProperties: false
+
+required:
+  - schema_version
+  - kind
+  - project_id
+  - repository
+  - default_branch
+  - task_prefix
+  - read_only
+
+properties:
+  schema_version:
+    type: string
+    pattern: "^[0-9]+\\.[0-9]+$"
+  kind:
+    const: "bridge_project_profile"
+  project_id:
+    description: "Eindeutige Projektkennung (= Verzeichnisname unter projects/)."
+    type: string
+    minLength: 1
+  description:
+    type: ["string", "null"]
+    default: null
+  repository:
+    type: string
+    minLength: 1
+  default_branch:
+    type: string
+    minLength: 1
+  task_prefix:
+    description: "Externer Nummernraum, z. B. BRIDGE oder DORF. Strikt getrennt."
+    type: string
+    pattern: "^[A-Z][A-Z0-9]*$"
+  read_only:
+    description: "Pflicht. true = die Bridge darf dieses Projekt nur lesen."
+    type: boolean
+  worktree_root:
+    type: ["string", "null"]
+    default: null
+  allowed_machines:
+    description: "Physische Maschinen, auf denen dieses Projekt bearbeitet werden darf."
+    type: array
+    items:
+      type: string
+    default: []
+  model_policy:
+    type: ["object", "null"]
+    additionalProperties: false
+    default: null
+    properties:
+      default_model:
+        type: ["string", "null"]
+      default_reasoning_level:
+        type: ["string", "null"]
+        enum: [LOW, MEDIUM, HIGH, null]
+  git_policy:
+    type: ["object", "null"]
+    additionalProperties: false
+    default: null
+    properties:
+      allow_push:        { type: boolean }
+      allow_merge:       { type: boolean }
+      allow_force_push:  { type: boolean }
+      protected_branches:
+        type: array
+        items: { type: string }
+  test_policy:
+    type: ["object", "null"]
+    additionalProperties: false
+    default: null
+    properties:
+      command:  { type: ["string", "null"] }
+      required: { type: boolean }
+  handover_policy:
+    type: ["object", "null"]
+    additionalProperties: false
+    default: null
+    properties:
+      branch:        { type: string }
+      require_clean: { type: boolean }
+  migration_policy:
+    type: ["object", "null"]
+    additionalProperties: false
+    default: null
+    properties:
+      allow_production: { type: boolean }
