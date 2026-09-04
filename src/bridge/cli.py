@@ -18,7 +18,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from bridge import importer, state_machine
+from bridge import heartbeat, importer, state_machine, watcher
 from bridge.store import Store, StoreError
 
 _ENGINE_ERRORS = (StoreError, state_machine.TransitionError, state_machine.ModelError,
@@ -77,6 +77,33 @@ def _build_parser() -> argparse.ArgumentParser:
     asub.add_parser("show", help="Auditspur ausgeben").add_argument("task_id", nargs="?")
 
     sub.add_parser("resume", help="Wiederaufsetz-Hilfe (rein lesend)").add_argument("task_id")
+
+    watch = sub.add_parser(
+        "watch", help="Watcher: Ergebnisse/Heartbeats erkennen und weiterführen")
+    wsub = watch.add_subparsers(dest="watch_cmd", required=True)
+
+    wscan = wsub.add_parser("scan", help="einmalig prüfen (Trockenlauf ohne --apply)")
+    wscan.add_argument("--apply", action="store_true",
+                       help="erlaubte Übergänge über die Engine setzen")
+    wscan.add_argument("--actor", help="verantwortlich für den Wechsel (Pflicht bei --apply)")
+    wscan.add_argument("--machine")
+    wscan.add_argument("--task", help="nur diesen Auftrag prüfen")
+
+    wloop = wsub.add_parser("loop", help="wiederholt prüfen (bis Ctrl+C)")
+    wloop.add_argument("--interval", type=float, required=True,
+                       help="Sekunden zwischen den Durchläufen")
+    wloop.add_argument("--apply", action="store_true")
+    wloop.add_argument("--actor")
+    wloop.add_argument("--machine")
+    wloop.add_argument("--max-iterations", type=int, default=None,
+                       help=argparse.SUPPRESS)
+
+    whb = wsub.add_parser("heartbeat",
+                          help="Heartbeat eines Laufs schreiben/aktualisieren")
+    whb.add_argument("task_id")
+    whb.add_argument("run_id")
+    whb.add_argument("--actor")
+    whb.add_argument("--machine")
     return parser
 
 
@@ -233,6 +260,58 @@ def _recent_commits(root, count=3):
     return [line for line in proc.stdout.splitlines() if line.strip()]
 
 
+def _cmd_watch(args, store) -> int:
+    if args.watch_cmd == "heartbeat":
+        doc = heartbeat.beat(store.root, args.task_id, args.run_id,
+                             actor=args.actor, machine=args.machine,
+                             schema_dir=store.schema_dir)
+        print(f"OK: Heartbeat {doc['bridge_task_id']} {doc['run_id']} "
+              f"last_seen={doc['last_seen']}")
+        return 0
+
+    if getattr(args, "apply", False) and not args.actor:
+        print("Nutzungsfehler: --apply erfordert --actor.", file=sys.stderr)
+        return 2
+
+    policy = watcher.load_policy(store.schema_dir)
+
+    if args.watch_cmd == "scan":
+        findings = watcher.scan(store, policy)
+        if args.task:
+            findings = [f for f in findings if f.bridge_task_id == args.task]
+        applied = (watcher.apply(store, findings, args.actor, args.machine)
+                   if args.apply else [])
+        _print_findings(findings, applied)
+        return 0
+
+    if args.watch_cmd == "loop":
+        runs = watcher.loop(store, policy, interval=args.interval,
+                            apply=args.apply, actor=args.actor,
+                            machine=args.machine,
+                            max_iterations=args.max_iterations)
+        for findings, applied in runs:
+            _print_findings(findings, applied)
+        return 0
+    return 2  # vom Parser ausgeschlossen
+
+
+def _print_findings(findings, applied) -> None:
+    if not findings:
+        print("(keine Findings)")
+        return
+    if applied:  # apply liefert 1:1 zu findings, in Reihenfolge
+        for entry in applied:
+            f = entry.finding
+            mark = "OK  " if entry.applied else "SKIP"
+            print(f"{mark} {f.kind:6} {f.bridge_task_id} {f.run_id} "
+                  f"{f.from_status} -> {f.target}  [{entry.detail}]")
+    else:
+        for f in findings:
+            note = "" if f.allowed else "  [Übergang nicht erlaubt - fail-closed]"
+            print(f"DRY  {f.kind:6} {f.bridge_task_id} {f.run_id} "
+                  f"{f.from_status} -> {f.target}{note}")
+
+
 _DISPATCH = {
     "validate": _cmd_validate,
     "task": _cmd_task,
@@ -240,6 +319,7 @@ _DISPATCH = {
     "next-run": _cmd_next_run,
     "audit": _cmd_audit,
     "resume": _cmd_resume,
+    "watch": _cmd_watch,
 }
 
 
