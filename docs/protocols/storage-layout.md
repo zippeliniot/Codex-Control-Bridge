@@ -16,6 +16,7 @@ results/
   BRIDGE-<id>/
     RUN-<yy>/
       result.yaml                 # Ergebnis eines Laufs (gegen result.schema.yaml)
+      heartbeat.json              # Lebenszeichen des Laufs (heartbeat.schema.yaml, BRIDGE-008)
 audit/
   audit.jsonl                     # append-only Auditspur (1 JSON-Ereignis pro Zeile)
 ```

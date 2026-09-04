@@ -129,6 +129,9 @@ PYTHONPATH=src python -m bridge <kommando>        # alternativ
 | `next-run <BRIDGE-id>` | nächste Lauf-ID |
 | `audit show [<BRIDGE-id>]` | Auditspur (optional gefiltert) |
 | `resume <BRIDGE-id>` | Wiederaufsetz-Hilfe (rein lesend) |
+| `watch scan [--apply] [--actor <a>] [--machine <m>] [--task <id>]` | Ergebnisse/tote Heartbeats erkennen; mit `--apply` erlaubte Übergänge setzen |
+| `watch loop --interval <sek> [--apply] [--actor <a>] [--machine <m>]` | dasselbe wiederholt (bis Ctrl+C) |
+| `watch heartbeat <BRIDGE-id> <RUN-YY> [--actor <a>] [--machine <m>]` | Heartbeat eines Laufs schreiben/aktualisieren |
 
 Exit-Codes: `0` ok, `1` Fachfehler/fail-closed, `2` Nutzungsfehler.
 
@@ -139,6 +142,37 @@ automatisch und übernimmt nur die **subjektiven** aus `--from <draft.yaml>` bzw
 den Flags (Flag gewinnt). Der Git-Zugriff ist injizierbar (`git_info_fn`), die
 Tests laufen hermetisch ohne echtes Git. Fail-closed bei Git-Fehler, fehlendem
 Auftrag, Schemafehler oder bereits vorhandenem Lauf.
+
+---
+
+## Watcher (BRIDGE-008)
+
+`src/bridge/watcher.py` beobachtet den Repo-Zustand und führt Aufträge in
+`eligible_from_status` (Policy: [`schemas/watcher-policy.yaml`](schemas/watcher-policy.yaml))
+automatisch weiter:
+
+- **Ergebnis fertig** — `results/<id>/<letzter RUN>/result.yaml` vorhanden →
+  Auftrag auf `on_result_status[<status>]`.
+- **Heartbeat tot** — `now - last_seen > heartbeat_timeout_seconds` (oder kein
+  Heartbeat jenseits einer Karenz seit Laufbeginn) → `on_stale_heartbeat.to_status`
+  (nur Status + Audit-`reason`, **kein** `result.yaml`).
+
+Trifft beides zu, hat „Ergebnis" Vorrang. Geschrieben wird **nur mit `--apply`**
+(erfordert `--actor`); jeder Übergang muss laut Policy **und**
+[`state-model.yaml`](schemas/state-model.yaml) erlaubt sein, sonst wird er
+übersprungen (fail-closed). Der Watcher führt **niemals** Git-Aktionen aus. Die
+Zeit (`now`) ist injizierbar → Tests hermetisch.
+
+`src/bridge/heartbeat.py` schreibt/liest die Heartbeat-Datei
+(`results/<id>/RUN-<yy>/heartbeat.json`, Schema
+[`heartbeat.schema.yaml`](schemas/heartbeat.schema.yaml)); das periodische
+Schlagen durch einen lebenden Executor kommt in BRIDGE-009.
+
+```
+python src/bridge/cli.py --root . watch scan
+python src/bridge/cli.py --root . watch scan --apply --actor watcher
+python src/bridge/cli.py --root . watch heartbeat BRIDGE-042 RUN-01 --actor codex
+```
 
 ---
 
