@@ -74,13 +74,13 @@ Stufe-2/3-Automatik über den bisherigen Umfang hinaus.
 
 ## Akzeptanzkriterien
 
-- [ ] Skript beobachtet das echte CCB-Repo rein lesend (über den Adapter)
-- [ ] Bridge-Ausgaben nur im separaten `--out`, nichts im Zielrepo
-- [ ] Unverändert-Nachweis: HEAD und Working Tree des Zielrepos vorher == nachher
-- [ ] erzeugtes `result.yaml` trägt die Provenienz des Zielrepos
-- [ ] Exit-Code 0 bei PASS, != 0 bei FAIL (fail-closed)
-- [ ] hermetischer unittest gegen synthetisches Repo grün
-- [ ] alle Tests grün; Pflicht-Footer am Ende
+- [x] Skript beobachtet das echte CCB-Repo rein lesend (über den Adapter)
+- [x] Bridge-Ausgaben nur im separaten `--out`, nichts im Zielrepo
+- [x] Unverändert-Nachweis: HEAD und Working Tree des Zielrepos vorher == nachher
+- [x] erzeugtes `result.yaml` trägt die Provenienz des Zielrepos
+- [x] Exit-Code 0 bei PASS, != 0 bei FAIL (fail-closed)
+- [x] hermetischer unittest gegen synthetisches Repo grün
+- [x] alle Tests grün; Pflicht-Footer am Ende
 
 ## Abschluss des Programms
 

@@ -256,8 +256,31 @@ Projekts (z. B. Dorfschaft), ohne je zu schreiben:
 
 **Nur Mechanismus:** keine Verbindung zum echten Dorfschaft-Repo, keine
 CLI-Verdrahtung, keine WSL-Zugriffe. Tests laufen gegen ein synthetisches
-Wegwerf-Git-Repo im Temp-Verzeichnis. Die reale, read-only Integration folgt in
-BRIDGE-012 (Codex/Ubuntu-Seite).
+Wegwerf-Git-Repo im Temp-Verzeichnis.
+
+---
+
+## Read-only-Integrationstest (BRIDGE-012)
+
+`scripts/integration_readonly.py` beweist, dass die Bridge ein **echtes** Git-Repo
+read-only begleiten kann, ohne es zu verändern. Zielrepo ist per Default das
+CCB-Repo selbst; alle Bridge-Ausgaben (`tasks/`, `results/`, `audit/`) gehen in
+einen **separaten** Store-`root` (`--out`, Default: Temp-Verzeichnis).
+
+Ablauf: Vorher-Snapshot (`rev-parse HEAD` + `status --porcelain`) → Git-Stand des
+Zielrepos rein lesend über `ReadOnlyProjectAdapter` → im separaten Store einen
+Beobachtungs-Auftrag anlegen und via `importer.import_result` ein `result.yaml`
+mit der Provenienz des Zielrepos ablegen → Nachher-Snapshot → Nachweis
+(HEAD + Working Tree identisch, `result.yaml` unter `--out`, dessen `head`
+== Zielrepo-HEAD).
+
+```
+.venv/Scripts/python.exe scripts/integration_readonly.py
+```
+
+Exit `0` = PASS, `!= 0` = FAIL (fail-closed). Der hermetische unittest
+`tests/test_integration_readonly.py` fährt denselben Ablauf gegen ein
+synthetisches Temp-Git-Repo.
 
 ---
 
