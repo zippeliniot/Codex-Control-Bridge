@@ -34,3 +34,9 @@ Zusätzlich (BRIDGE-008):
 |---------------------------|--------------|--------|
 | `heartbeat.schema.yaml`   | BRIDGE-008   | vorhanden |
 | `watcher-policy.yaml`     | BRIDGE-008   | vorhanden |
+
+Zusätzlich (BRIDGE-011):
+
+| Datei                          | Definiert in | Status |
+|--------------------------------|--------------|--------|
+| `git-readonly-allowlist.yaml`  | BRIDGE-011   | vorhanden |

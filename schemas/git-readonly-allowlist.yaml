@@ -1,0 +1,32 @@
+# Codex Control Bridge - Allowlist erlaubter git-Lese-Kommandos (SSOT)
+# BRIDGE-011 . Härtet read-only-Projektzugriff (z. B. Dorfschaft).
+#
+# Der Read-only-Adapter darf NUR diese Subkommandos gegen ein fremdes Repo
+# absetzen. Jedes andere Subkommando -> ReadOnlyViolation (fail-closed).
+#
+# Aufgenommen sind ausschließlich Subkommandos, die UNABHÄNGIG von ihren
+# Argumenten nichts schreiben.
+#
+# Bewusst NICHT enthalten, weil sie mit bestimmten Argumenten schreiben können:
+#   branch (git branch <name> legt an), symbolic-ref (kann HEAD setzen),
+#   config (schreibt), remote (schreibt), tag (kann anlegen).
+# Ebenso NICHT: alle klar schreibenden (commit, push, checkout, switch, restore,
+#   reset, merge, rebase, add, rm, mv, clean, stash, fetch, pull, gc, prune,
+#   worktree, notes, apply, am, cherry-pick, revert, update-ref, ...).
+# Für den Branchnamen wird 'rev-parse --abbrev-ref HEAD' verwendet (rein lesend).
+
+schema_version: "1.0"
+kind: "bridge_git_readonly_allowlist"
+
+allowed_git_subcommands:
+  - rev-parse
+  - rev-list
+  - log
+  - show
+  - diff
+  - diff-tree
+  - status
+  - ls-files
+  - cat-file
+  - for-each-ref
+  - describe
