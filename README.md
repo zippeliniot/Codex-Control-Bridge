@@ -227,14 +227,37 @@ Projektspezifische Regeln leben im **Profil**, nicht im Core: ein
 - `validate_profile(pfad_oder_dict, schema_dir)` — reine Schema-Validierung.
 
 BRIDGE-010 umfasst **nur Schema + Loader** — die Verdrahtung in Store/Runner
-(`task_prefix` erzwingen, `read_only`/`allowed_machines` prüfen) folgt in
-BRIDGE-011. Beispielprofil: `projects/examples/dorfschaft.project.yaml`.
+(`task_prefix` erzwingen, `read_only`/`allowed_machines` prüfen) bleibt bewusst
+offen. Beispielprofil: `projects/examples/dorfschaft.project.yaml`.
 
 ```
 python src/bridge/cli.py --root . project list
 python src/bridge/cli.py --root . project show codex-control-bridge
 python src/bridge/cli.py --root . project validate projects/codex-control-bridge/project.yaml
 ```
+
+---
+
+## Dorfschaft-Adapter — Mechanismus (BRIDGE-011)
+
+`src/bridge/adapter.py` liest den Git-Stand eines **fremden, read-only**
+Projekts (z. B. Dorfschaft), ohne je zu schreiben:
+
+- `load_allowlist(schema_dir)` — erlaubte Lese-Subkommandos aus
+  [`schemas/git-readonly-allowlist.yaml`](schemas/git-readonly-allowlist.yaml)
+  (SSOT, nicht hartkodiert).
+- `run_readonly_git(repo_path, args, allowlist=…)` — prüft `args[0]` **vor**
+  jeder Ausführung; nicht gelistet → `ReadOnlyViolation`, es wird nichts gestartet.
+- `ReadOnlyProjectAdapter(profile, repo_path, schema_dir=None)` — verlangt
+  `profile["read_only"] is True` (sonst `ReadOnlyViolation`); `git_info()`
+  liefert dieselben Felder wie `importer.collect_git_info`; `as_git_info_fn()`
+  macht daraus einen `git_info_fn` für `importer.import_result` — das Ergebnis
+  landet im CCB-Store, die Git-Provenienz kommt aus dem fremden Repo.
+
+**Nur Mechanismus:** keine Verbindung zum echten Dorfschaft-Repo, keine
+CLI-Verdrahtung, keine WSL-Zugriffe. Tests laufen gegen ein synthetisches
+Wegwerf-Git-Repo im Temp-Verzeichnis. Die reale, read-only Integration folgt in
+BRIDGE-012 (Codex/Ubuntu-Seite).
 
 ---
 

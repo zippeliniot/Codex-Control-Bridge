@@ -78,13 +78,13 @@ Betrieb → BRIDGE-012 (Read-only-Integrationstest, Codex/Ubuntu-Seite).
 
 ## Akzeptanzkriterien
 
-- [ ] Adapter liest Git-Stand nur über Allowlist-Kommandos
-- [ ] jedes Nicht-Allowlist-Kommando → ReadOnlyViolation, fremdes Repo unverändert
-- [ ] `read_only: false`-Profil wird abgelehnt
-- [ ] Allowlist aus der YAML geladen (nicht hartkodiert)
-- [ ] `as_git_info_fn` speist den Importer; Ergebnis im CCB-Store, Provenienz aus fremdem Repo
-- [ ] Tests hermetisch (synthetisches Temp-Git), fremdes Repo bleibt unverändert
-- [ ] alle Tests grün; Pflicht-Footer am Ende
+- [x] Adapter liest Git-Stand nur über Allowlist-Kommandos
+- [x] jedes Nicht-Allowlist-Kommando → ReadOnlyViolation, fremdes Repo unverändert
+- [x] `read_only: false`-Profil wird abgelehnt
+- [x] Allowlist aus der YAML geladen (nicht hartkodiert)
+- [x] `as_git_info_fn` speist den Importer; Ergebnis im CCB-Store, Provenienz aus fremdem Repo
+- [x] Tests hermetisch (synthetisches Temp-Git), fremdes Repo bleibt unverändert
+- [x] alle Tests grün; Pflicht-Footer am Ende
 
 ## Nächster Auftrag
 
