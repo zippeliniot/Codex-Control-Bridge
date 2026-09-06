@@ -114,3 +114,18 @@ def list_profiles(root) -> list[str]:
         if (entry / "project.yaml").is_file():
             out.append(entry.name)
     return sorted(out)
+
+
+def get_executor(profile) -> str | None:
+    """Ausführende Instanz des Profils (codex | claude-code | null)."""
+    return profile.get("executor")
+
+
+def get_controller(profile) -> str | None:
+    """Steuerinstanz des Profils (anthropic | openai | human | null)."""
+    return profile.get("controller")
+
+
+def requires_automation(profile) -> bool:
+    """True, wenn executor gesetzt ist UND nicht read-only."""
+    return profile.get("executor") is not None and profile.get("read_only") is not True
