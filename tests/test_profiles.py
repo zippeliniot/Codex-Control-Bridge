@@ -107,6 +107,40 @@ class ProfilesTests(unittest.TestCase):
         self.assertIs(doc["read_only"], False)
         self.assertIn("codex-control-bridge", profiles.list_profiles(REPO_ROOT))
 
+    # -- executor/controller Accessoren (BRIDGE-013) -------
+
+    def test_executor_controller_in_profile(self):
+        doc = profiles.load_profile(REPO_ROOT, "codex-control-bridge")
+        self.assertEqual(profiles.get_executor(doc), "claude-code")
+        self.assertEqual(profiles.get_controller(doc), "human")
+
+    def test_executor_null_ok(self):
+        doc = profiles.load_profile(REPO_ROOT, "codex-control-bridge")
+        p = dict(doc, executor=None)
+        self.assertIsNone(profiles.get_executor(p))
+
+    def test_requires_automation_true_if_executor_and_not_readonly(self):
+        doc = profiles.load_profile(REPO_ROOT, "codex-control-bridge")
+        self.assertTrue(profiles.requires_automation(doc))
+
+    def test_requires_automation_false_if_readonly(self):
+        p = {"executor": "claude-code", "read_only": True}
+        self.assertFalse(profiles.requires_automation(p))
+
+    def test_invalid_executor_rejected(self):
+        bad = valid_profile(executor="gemini")
+        p = self.tmp / "bad.yaml"
+        p.write_text(yaml.safe_dump(bad), encoding="utf-8")
+        with self.assertRaises(profiles.ProfileError):
+            profiles.validate_profile(p, SCHEMA_DIR)
+
+    def test_invalid_controller_rejected(self):
+        bad = valid_profile(controller="claude-api")
+        p = self.tmp / "bad.yaml"
+        p.write_text(yaml.safe_dump(bad), encoding="utf-8")
+        with self.assertRaises(profiles.ProfileError):
+            profiles.validate_profile(p, SCHEMA_DIR)
+
 
 class CliProjectTests(unittest.TestCase):
     def setUp(self):
