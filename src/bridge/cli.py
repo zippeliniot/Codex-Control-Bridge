@@ -396,7 +396,7 @@ def _cmd_project(args, store) -> int:
         doc = profiles.load_profile(store.root, args.project_id,
                                     schema_dir=store.schema_dir)
         for key in ("project_id", "description", "repository", "default_branch",
-                    "task_prefix", "read_only", "allowed_machines"):
+                    "task_prefix", "read_only", "executor", "controller", "allowed_machines"):
             if key in doc:
                 print(f"{key}: {doc[key]}")
         return 0
