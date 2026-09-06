@@ -238,6 +238,32 @@ python src/bridge/cli.py --root . project validate projects/codex-control-bridge
 
 ---
 
+## Profil-Erweiterung: executor/controller (BRIDGE-013)
+
+Das Projektprofil trägt nun zwei neue Felder, damit die spätere Steuerkonsole
+(Stufe 3) datengetrieben weiß, wer ausführt und wer steuert:
+
+- **`executor`** (Enum: `codex` | `claude-code` | null) — die ausführende Instanz.
+- **`controller`** (Enum: `anthropic` | `openai` | human | null) — die steuernde
+  Stelle/Person.
+
+`src/bridge/profiles.py` stellt bereit:
+
+- `get_executor(profile) -> str | None` — liefert den Executor.
+- `get_controller(profile) -> str | None` — liefert den Controller.
+- `requires_automation(profile) -> bool` — `True`, wenn `executor` gesetzt und
+  `read_only` False ist (ein beobachtetes read-only-Projekt wird nicht ausgeführt).
+
+Die Felder sind im Schema optional; ungültige Enum-Werte werden bei der
+Validierung abgewiesen (fail-closed). CLI-Kommando `project show` gibt beide
+Felder aus.
+
+```
+python src/bridge/cli.py --root . project show codex-control-bridge
+```
+
+---
+
 ## Dorfschaft-Adapter — Mechanismus (BRIDGE-011)
 
 `src/bridge/adapter.py` liest den Git-Stand eines **fremden, read-only**
