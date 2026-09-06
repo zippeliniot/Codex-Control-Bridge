@@ -60,12 +60,12 @@ README-Nachzug, dieses Arbeitspaket.
 
 ## Akzeptanzkriterien
 
-- [ ] `executor`/`controller` im Schema (Enums, optional, fail-closed)
-- [ ] Profile aktualisiert und valide
-- [ ] `get_executor`/`get_controller`/`requires_automation` vorhanden
-- [ ] ungültige Werte werden abgewiesen
-- [ ] `project show` zeigt executor/controller
-- [ ] alle Tests grün; Pflicht-Footer am Ende
+- [x] `executor`/`controller` im Schema (Enums, optional, fail-closed)
+- [x] Profile aktualisiert und valide
+- [x] `get_executor`/`get_controller`/`requires_automation` vorhanden
+- [x] ungültige Werte werden abgewiesen
+- [x] `project show` zeigt executor/controller
+- [x] alle Tests grün; Pflicht-Footer am Ende
 
 ## Nächster Auftrag
 
