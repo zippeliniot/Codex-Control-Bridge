@@ -40,3 +40,5 @@ Zusätzlich (BRIDGE-011):
 | Datei                          | Definiert in | Status |
 |--------------------------------|--------------|--------|
 | `git-readonly-allowlist.yaml`  | BRIDGE-011   | vorhanden |
+
+Erweiterung (BRIDGE-013): `project.schema.yaml` um `executor` und `controller` ergänzt (Stufe-3-Vorbereitung).

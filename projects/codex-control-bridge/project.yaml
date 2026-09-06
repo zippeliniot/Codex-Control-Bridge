@@ -7,6 +7,8 @@ repository: Codex-Control-Bridge
 default_branch: main
 task_prefix: BRIDGE
 read_only: false
+executor: claude-code
+controller: human
 allowed_machines: [HAM11, DES11]
 git_policy:
   allow_push: true

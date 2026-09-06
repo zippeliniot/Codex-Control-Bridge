@@ -8,6 +8,8 @@ repository: Dorfschaft
 default_branch: main
 task_prefix: DORF
 read_only: true
+executor: null       # nur beobachtet, nicht ausgeführt
+controller: null
 allowed_machines: [HAM11, DES11]
 git_policy:
   allow_push: false

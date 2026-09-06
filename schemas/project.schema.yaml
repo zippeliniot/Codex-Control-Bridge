@@ -91,6 +91,16 @@ properties:
     properties:
       branch:        { type: string }
       require_clean: { type: boolean }
+  executor:
+    description: "Ausführende Instanz für dieses Projekt (CLI-getrieben). null = nicht automatisiert."
+    type: ["string", "null"]
+    enum: [codex, claude-code, null]
+    default: null
+  controller:
+    description: "Steuerinstanz (ersetzt den Browser-Chat). human = manuell; sonst API-gesteuert."
+    type: ["string", "null"]
+    enum: [anthropic, openai, human, null]
+    default: null
   migration_policy:
     type: ["object", "null"]
     additionalProperties: false
