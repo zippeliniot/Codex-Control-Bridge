@@ -1,5 +1,6 @@
 # Codex Control Bridge - Zustandsmodell (maßgeblich / SSOT)
 # BRIDGE-004 . Konzept-Abschnitt 5 + 7
+# BRIDGE-014: zwei Übergabe-Wartezustände ergänzt (Kopierrichtungen).
 #
 # Diese Datei ist die EINZIGE Quelle der erlaubten Zustandsübergänge.
 # Der Validator (src/bridge/state_machine.py) liest ausschließlich diese Datei;
@@ -17,11 +18,13 @@ initial_state: CREATED
 states:
   - CREATED
   - READY
+  - WAITING_FOR_HANDOFF_TO_EXECUTOR
   - CLAIMED
   - RUNNING
   - INTERRUPTED
   - WAITING_FOR_RESUME
   - COMPLETED
+  - WAITING_FOR_COPY_TO_CONTROL
   - FAILED
   - BLOCKED
   - REVIEW_REQUIRED
@@ -35,16 +38,31 @@ terminal_states:
 # Erlaubte Übergänge: von-Zustand -> Liste erlaubter Ziel-Zustände.
 # COMPLETED bedeutet "Ergebnisvertrag erfüllt", NICHT fachlich freigegeben;
 # daher ist COMPLETED nicht terminal, sondern kann in Review/Archiv übergehen.
+#
+# BRIDGE-014, zwei neue Wartezustände für die Copy-Paste-Übergabepunkte
+# zwischen Steuerchat (Browser) und Executor-Fenster (Codex/Claude Code):
+#   - WAITING_FOR_HANDOFF_TO_EXECUTOR: Auftrag ist fertig spezifiziert/angelegt,
+#     wartet darauf, dass ein Mensch ihn in das Executor-Fenster kopiert.
+#     (Richtung Steuerung -> Executor)
+#   - WAITING_FOR_COPY_TO_CONTROL: Ausführung ist fertig (COMPLETED), wartet
+#     darauf, dass ein Mensch das Ergebnis in den Steuerchat kopiert.
+#     (Richtung Executor -> Steuerung)
+# Beide sind bewusst reine Wartepunkte ohne inhaltliche Prüfung - die fachliche
+# Prüfung bleibt REVIEW_REQUIRED/APPROVAL_REQUIRED vorbehalten. Die direkten
+# Alt-Übergänge (READY->CLAIMED, COMPLETED->REVIEW_REQUIRED) bleiben zusätzlich
+# erlaubt (Abwärtskompatibilität / Stufe-3-Automatik ohne Kopierschritt).
 transitions:
-  CREATED:            [READY, BLOCKED, ARCHIVED]
-  READY:              [CLAIMED, BLOCKED, ARCHIVED]
-  CLAIMED:            [RUNNING, BLOCKED, FAILED, ARCHIVED]
-  RUNNING:            [COMPLETED, FAILED, BLOCKED, INTERRUPTED, REVIEW_REQUIRED, APPROVAL_REQUIRED]
-  INTERRUPTED:        [WAITING_FOR_RESUME, FAILED, BLOCKED, ARCHIVED]
-  WAITING_FOR_RESUME: [CLAIMED, RUNNING, BLOCKED, ARCHIVED]
-  REVIEW_REQUIRED:    [COMPLETED, APPROVAL_REQUIRED, RUNNING, FAILED, BLOCKED, ARCHIVED]
-  APPROVAL_REQUIRED:  [COMPLETED, RUNNING, FAILED, BLOCKED, ARCHIVED]
-  COMPLETED:          [REVIEW_REQUIRED, ARCHIVED]
-  FAILED:             [READY, BLOCKED, ARCHIVED]
-  BLOCKED:            [READY, FAILED, ARCHIVED]
-  ARCHIVED:           []
+  CREATED:                          [READY, BLOCKED, ARCHIVED]
+  READY:                            [WAITING_FOR_HANDOFF_TO_EXECUTOR, CLAIMED, BLOCKED, ARCHIVED]
+  WAITING_FOR_HANDOFF_TO_EXECUTOR:  [CLAIMED, BLOCKED, ARCHIVED]
+  CLAIMED:                          [RUNNING, BLOCKED, FAILED, ARCHIVED]
+  RUNNING:                          [COMPLETED, FAILED, BLOCKED, INTERRUPTED, REVIEW_REQUIRED, APPROVAL_REQUIRED]
+  INTERRUPTED:                      [WAITING_FOR_RESUME, FAILED, BLOCKED, ARCHIVED]
+  WAITING_FOR_RESUME:               [CLAIMED, RUNNING, BLOCKED, ARCHIVED]
+  REVIEW_REQUIRED:                  [COMPLETED, APPROVAL_REQUIRED, RUNNING, FAILED, BLOCKED, ARCHIVED]
+  APPROVAL_REQUIRED:                [COMPLETED, RUNNING, FAILED, BLOCKED, ARCHIVED]
+  COMPLETED:                        [WAITING_FOR_COPY_TO_CONTROL, REVIEW_REQUIRED, ARCHIVED]
+  WAITING_FOR_COPY_TO_CONTROL:      [REVIEW_REQUIRED, ARCHIVED]
+  FAILED:                           [READY, BLOCKED, ARCHIVED]
+  BLOCKED:                          [READY, FAILED, ARCHIVED]
+  ARCHIVED:                         []

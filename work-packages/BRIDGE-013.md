@@ -69,4 +69,7 @@ README-Nachzug, dieses Arbeitspaket.
 
 ## Nächster Auftrag
 
-**BRIDGE-014 — Executor-Abstraktion + Claude-Code-Executor (CLI-getrieben).**
+**BRIDGE-014 — Übergabe-Wartezustände ins Zustandsmodell** (Richtungswechsel,
+s. CCB-UEBERGABE.md Abschnitt 6: Copy-Paste-Dirigent statt Executor-Vollautomatik
+als nächstes Ziel). Die ursprünglich hier notierte Executor-Abstraktion ist auf
+später verschoben (nur relevant, falls API-Vollautomatik gewünscht wird).
