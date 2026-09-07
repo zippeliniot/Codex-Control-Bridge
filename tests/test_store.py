@@ -180,5 +180,33 @@ class StoreTests(unittest.TestCase):
             self.store.next_run_id("BRIDGE-0900/../../evil")
 
 
+class IdFormatTests(unittest.TestCase):
+    """BRIDGE-015: <PRAEFIX bis 8 Grossbuchstaben>-<4 Ziffern>."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="ccb-idfmt-"))
+        for name in ("tasks", "results", "audit"):
+            (self.tmp / name).mkdir()
+        self.store = Store(root=self.tmp, schema_dir=SCHEMA_DIR)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_non_bridge_prefix_accepted(self):
+        doc = self.store.create_task(valid_task(bridge_task_id="DORF-0001"))
+        self.assertEqual(doc["bridge_task_id"], "DORF-0001")
+        self.assertTrue((self.tmp / "tasks" / "DORF-0001" / "task.yaml").exists())
+        self.store.validate(valid_task(bridge_task_id="DORF-0001"))
+
+    def test_three_digit_number_rejected(self):
+        with self.assertRaises(StoreError):
+            self.store.create_task(valid_task(bridge_task_id="BRIDGE-042"))
+        self.assertFalse((self.tmp / "tasks" / "BRIDGE-042").exists())
+
+    def test_nine_letter_prefix_rejected(self):
+        with self.assertRaises(StoreError):
+            self.store.create_task(valid_task(bridge_task_id="ABCDEFGHI-0001"))
+
+
 if __name__ == "__main__":
     unittest.main()
