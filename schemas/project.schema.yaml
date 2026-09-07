@@ -41,9 +41,11 @@ properties:
     type: string
     minLength: 1
   task_prefix:
-    description: "Externer Nummernraum, z. B. BRIDGE oder DORF. Strikt getrennt."
+    description: "Externer Nummernraum, z. B. BRIDGE oder DORF. Strikt getrennt.
+      Max. 8 Grossbuchstaben (BRIDGE-015: passend zu bridge_task_id-Format
+      <PREFIX>-<4 Ziffern>)."
     type: string
-    pattern: "^[A-Z][A-Z0-9]*$"
+    pattern: "^[A-Z]{1,8}$"
   read_only:
     description: "Pflicht. true = die Bridge darf dieses Projekt nur lesen."
     type: boolean

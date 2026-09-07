@@ -63,7 +63,7 @@ properties:
   bridge_task_id:
     description: "Auftrag, zu dem dieses Ergebnis gehört."
     type: string
-    pattern: "^BRIDGE-[0-9]{3,}$"
+    pattern: "^[A-Z]{1,8}-[0-9]{4}$"
 
   project_id:
     description: "Projektkennung (muss zum Auftrag passen)."
