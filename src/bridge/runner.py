@@ -32,7 +32,11 @@ from bridge.store import StoreError
 _RUN_RE = re.compile(r"^RUN-[0-9]{2,}$")
 
 # Feste Startkette bis zum laufenden Zustand.
-_START_CHAIN = ("CREATED", "READY", "CLAIMED", "RUNNING")
+# BRIDGE-014: WAITING_FOR_HANDOFF_TO_EXECUTOR als regulärer Startpunkt zwischen
+# READY und CLAIMED (Normalfall: Mensch hat den Auftrag ins Executor-Fenster
+# kopiert). Fehlende Zwischenschritte werden weiterhin automatisch durchlaufen.
+_START_CHAIN = ("CREATED", "READY", "WAITING_FOR_HANDOFF_TO_EXECUTOR",
+                "CLAIMED", "RUNNING")
 _START_FROM = _START_CHAIN[:-1]           # zulässige Ausgangszustände für start()
 _RESUME_FROM = ("INTERRUPTED", "WAITING_FOR_RESUME")
 
@@ -152,6 +156,13 @@ def finish(store, task_id, status, *, draft=None, base_head=None, actor,
     )
     event = store.set_status(task_id, status, actor, machine,
                              reason=f"runner: finish -> {status}")
+    # BRIDGE-014: nur der Erfolgspfad bekommt automatisch den Wartezustand
+    # "wartet auf Kopie in den Steuerchat". FAILED/BLOCKED/REVIEW_REQUIRED/
+    # APPROVAL_REQUIRED brauchen ohnehin sofort Aufmerksamkeit -> unverändert.
+    if status == "COMPLETED":
+        event = store.set_status(task_id, "WAITING_FOR_COPY_TO_CONTROL",
+                                 actor, machine,
+                                 reason="auto: wartet auf Kopie in den Steuerchat")
     return result, event
 
 
