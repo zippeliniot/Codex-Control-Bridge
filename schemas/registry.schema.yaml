@@ -1,0 +1,39 @@
+# Codex Control Bridge - Maschinen-Registry-Schema
+# BRIDGE-016 . ordnet COMPUTERNAME -> lokale lokale Basis zu, unter der alle
+# Projekt-Repos liegen (E:\_DEV\<repository>, auf jeder Maschine gleich benannt).
+#
+# Zweck: NUR für die Befehlsreferenz (ccb commands), die reale, kopierfertige
+# lokale Pfade ausgeben soll. Die Aufträge selbst liegen alle in EINEM
+# zentralen Store (diesem Repo) - die Registry wird NICHT gebraucht, um
+# Aufträge zu finden, nur um Pfade anderer Projekt-Repos aufzulösen.
+#
+# Fail-closed: eine unbekannte Maschine liefert hier keinen Pfad - das prüft
+# der Code (src/bridge/registry.py), nicht dieses Schema.
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://github.com/zippeliniot/Codex-Control-Bridge/schemas/registry.schema.yaml"
+title: "Codex Control Bridge Machine Registry"
+description: "COMPUTERNAME -> absoluter lokaler Basispfad."
+type: object
+additionalProperties: false
+
+required:
+  - schema_version
+  - kind
+  - machines
+
+properties:
+  schema_version:
+    type: string
+    pattern: "^[0-9]+\\.[0-9]+$"
+  kind:
+    const: "bridge_machine_registry"
+  machines:
+    description: "Maschinenname (COMPUTERNAME) -> lokale Basis, z. B. HAM11: 'E:\\_DEV'."
+    type: object
+    minProperties: 1
+    additionalProperties:
+      type: string
+      minLength: 1
+    propertyNames:
+      pattern: "^[A-Za-z0-9_-]{1,32}$"

@@ -1,0 +1,7 @@
+# Codex Control Bridge - Maschinen-Registry (SSOT, versioniert)
+# BRIDGE-016. Nur für die Befehlsreferenz (ccb commands) - siehe Schema-Kommentar.
+schema_version: "1.0"
+kind: bridge_machine_registry
+machines:
+  HAM11: "E:\\_DEV"
+  DES11: "E:\\_DEV"
