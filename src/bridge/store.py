@@ -272,6 +272,28 @@ class Store:
         ))
         return doc
 
+    def last_transition_at(self, task_id, new_state) -> str | None:
+        """Letzter Zeitpunkt (ISO-Timestamp), zu dem ``task_id`` in
+        ``new_state`` gewechselt ist. Liest ``audit.jsonl`` einmal komplett
+        (die Datei ist klein und append-only, also chronologisch), gibt den
+        ``timestamp`` des letzten passenden Eintrags zurueck, sonst ``None``."""
+        path = self._in_root(self.audit_file)
+        if not path.exists():
+            return None
+        found = None
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if (event.get("bridge_task_id") == task_id
+                    and event.get("new_state") == new_state):
+                found = event.get("timestamp")
+        return found
+
     # ----- Audit --------------------------------------------------------
 
     @staticmethod
