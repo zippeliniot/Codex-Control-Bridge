@@ -120,9 +120,10 @@ PYTHONPATH=src python -m bridge <kommando>        # alternativ
 | Kommando | Zweck |
 |---|---|
 | `validate <pfad>` | Task/Result gegen Schema prüfen |
-| `task create <task.yaml>` | Auftrag anlegen |
+| `task create <task.yaml>` | Auftrag anlegen (schaltet automatisch bis `WAITING_FOR_HANDOFF_TO_EXECUTOR` durch) |
 | `task show <BRIDGE-id>` | Status + Kernfelder |
 | `task list` | alle Aufträge mit Status |
+| `task copied <BRIDGE-id> --actor <a>` | Ergebnis wurde in den Steuerchat kopiert (`WAITING_FOR_COPY_TO_CONTROL` → `REVIEW_REQUIRED`) |
 | `task set-status <id> <STATE> --actor <a> [--machine <m>] [--reason <r>]` | Zustandswechsel |
 | `result write <result.yaml>` | Ergebnis ablegen |
 | `result import <BRIDGE-id> --status <STATE> [--from <draft.yaml>] [--base-head <sha>] [--run-id <RUN-YY>] …` | Ergebnis aus dem Executor-Kontext übernehmen |
@@ -211,6 +212,30 @@ python src/bridge/cli.py --root . run beat   BRIDGE-042 --actor codex
 python src/bridge/cli.py --root . run finish BRIDGE-042 --status COMPLETED --actor codex --summary "…"
 python src/bridge/cli.py --root . run resume BRIDGE-042 --actor codex
 ```
+
+---
+
+## Übergabe-Wartezustände (BRIDGE-014)
+
+Die beiden Copy-Paste-Übergabepunkte zwischen Steuerchat (Browser) und
+Executor-Fenster sind echte Zustände im Modell
+([`state-model.yaml`](schemas/state-model.yaml)):
+
+- **`WAITING_FOR_HANDOFF_TO_EXECUTOR`** — Auftrag ist angelegt und wartet darauf,
+  dass ein Mensch ihn ins Executor-Fenster kopiert. `task create` schaltet
+  automatisch dorthin durch (Auto-Chain, keine Zusatzbefehle nötig).
+- **`WAITING_FOR_COPY_TO_CONTROL`** — Ausführung ist `COMPLETED` und wartet
+  darauf, dass ein Mensch das Ergebnis in den Steuerchat kopiert. `run finish
+  --status COMPLETED` schaltet automatisch dorthin durch; alle anderen
+  Zielzustände (`FAILED`, `BLOCKED`, `REVIEW_REQUIRED`, `APPROVAL_REQUIRED`)
+  bleiben unverändert.
+
+`run start` akzeptiert `WAITING_FOR_HANDOFF_TO_EXECUTOR` als regulären
+Startpunkt. Nach dem Einfügen ins Steuerchat quittiert der Mensch mit
+`task copied <id> --actor <a>` (→ `REVIEW_REQUIRED`); steht der Auftrag nicht in
+`WAITING_FOR_COPY_TO_CONTROL`, lehnt die State-Machine den Aufruf ab
+(fail-closed). Die alten Direktkanten (`READY→CLAIMED`,
+`COMPLETED→REVIEW_REQUIRED`) bleiben zusätzlich erlaubt.
 
 ---
 

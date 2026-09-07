@@ -166,15 +166,29 @@ Tests.
 
 ## Akzeptanzkriterien
 
-- [ ] `WAITING_FOR_HANDOFF_TO_EXECUTOR` und `WAITING_FOR_COPY_TO_CONTROL` im
+- [x] `WAITING_FOR_HANDOFF_TO_EXECUTOR` und `WAITING_FOR_COPY_TO_CONTROL` im
       Zustandsmodell (geliefert, hier nur bestätigen)
-- [ ] `task create` landet automatisch bei `WAITING_FOR_HANDOFF_TO_EXECUTOR`
-- [ ] `run start` funktioniert aus `WAITING_FOR_HANDOFF_TO_EXECUTOR` heraus
-- [ ] `run finish --status COMPLETED` landet automatisch bei
+- [x] `task create` landet automatisch bei `WAITING_FOR_HANDOFF_TO_EXECUTOR`
+- [x] `run start` funktioniert aus `WAITING_FOR_HANDOFF_TO_EXECUTOR` heraus
+- [x] `run finish --status COMPLETED` landet automatisch bei
       `WAITING_FOR_COPY_TO_CONTROL`
-- [ ] `run finish` mit jedem anderen Status bleibt unverändert (kein Auto-Chain)
-- [ ] neuer Befehl `task copied` funktioniert und ist fail-closed
-- [ ] alle Tests grün; Pflicht-Footer am Ende
+- [x] `run finish` mit jedem anderen Status bleibt unverändert (kein Auto-Chain)
+- [x] neuer Befehl `task copied` funktioniert und ist fail-closed
+- [x] alle Tests grün; Pflicht-Footer am Ende
+
+## Umsetzungsnotiz (RUN-01)
+
+Zusätzlich zu `state-model.yaml`/`audit-event-map.yaml` (von der Steuerebene
+geliefert) mussten die **Enums in zwei weiteren Schemadateien** um die zwei
+neuen Zustände bzw. Ereignistypen ergänzt werden, sonst wäre jede
+`set_status`-/`import_result`-Validierung fail-closed abgebrochen:
+
+- `schemas/task.schema.yaml` — `status`-Enum (+ 2 Zustände)
+- `schemas/audit-event.schema.yaml` — `event_type`-Enum (+ `TASK_WAITING_FOR_HANDOFF`,
+  `TASK_WAITING_FOR_COPY`) sowie `old_state`/`new_state`-Enums (+ 2 Zustände)
+
+Betroffene Bestandstests an das neue Auto-Chain-Verhalten angepasst
+(`test_cli.py`, `test_runner.py`). Gesamt 117 Tests grün (109 + 8 neue).
 
 ## Nächster Auftrag
 
