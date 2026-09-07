@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # src-Layout: direkter Skriptaufruf (python src/bridge/cli.py ...) braucht das
@@ -18,7 +20,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from bridge import heartbeat, importer, profiles, runner, state_machine, watcher
+from bridge import heartbeat, importer, profiles, registry, runner, state_machine, watcher
 from bridge.store import Store, StoreError
 
 _ENGINE_ERRORS = (StoreError, state_machine.TransitionError, state_machine.ModelError,
@@ -81,6 +83,16 @@ def _build_parser() -> argparse.ArgumentParser:
     asub.add_parser("show", help="Auditspur ausgeben").add_argument("task_id", nargs="?")
 
     sub.add_parser("resume", help="Wiederaufsetz-Hilfe (rein lesend)").add_argument("task_id")
+
+    sboard = sub.add_parser(
+        "board", help="Copy-Paste-Board: welcher Auftrag wartet auf Kopie (rein lesend)")
+    sboard.add_argument("--machine", help="Maschinenname ueberschreiben (Standard: COMPUTERNAME)")
+
+    scmd = sub.add_parser(
+        "commands", help="Befehlsreferenz mit aufgeloestem lokalem Pfad (rein lesend)")
+    scmd.add_argument("--machine", help="Maschinenname ueberschreiben (Standard: COMPUTERNAME)")
+    scmd.add_argument("--project", default="codex-control-bridge",
+                      help="Projekt-ID fuer den aufgeloesten Pfad (Standard: codex-control-bridge)")
 
     watch = sub.add_parser(
         "watch", help="Watcher: Ergebnisse/Heartbeats erkennen und weiterführen")
@@ -289,23 +301,143 @@ def _cmd_resume(args, store) -> int:
     return 0
 
 
+_BOARD_STATES = ("WAITING_FOR_HANDOFF_TO_EXECUTOR", "WAITING_FOR_COPY_TO_CONTROL")
+_BOARD_DIRECTION = {
+    "WAITING_FOR_HANDOFF_TO_EXECUTOR": "Steuerchat -> Executor",
+    "WAITING_FOR_COPY_TO_CONTROL": "Executor -> Steuerchat",
+}
+
+
+def _fmt_wait(delta_seconds) -> str:
+    """Kurzformat der Wartezeit: "12m", "2h 14m", "1d 3h"."""
+    minutes = max(0, int(delta_seconds // 60))
+    if minutes < 60:
+        return f"{minutes}m"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 24:
+        return f"{hours}h {minutes}m"
+    days, hours = divmod(hours, 24)
+    return f"{days}d {hours}h"
+
+
+def _board_project(store, task) -> str:
+    """Projekt-Spalte: task_prefix aus dem Profil, Fail-soft auf project_id roh."""
+    project_id = task.get("project_id", "")
+    try:
+        profile = profiles.load_profile(store.root, project_id,
+                                        schema_dir=store.schema_dir)
+    except (profiles.ProfileError, StoreError):
+        return project_id or "?"
+    return profile.get("task_prefix") or project_id or "?"
+
+
+def _board_depends_note(store, task) -> str:
+    notes = []
+    for dep in task.get("depends_on", []) or []:
+        try:
+            dep_task = store.load_task(dep)
+        except StoreError:
+            continue  # Abhaengigkeit ausserhalb dieses Stores -> Fail-soft
+        dep_status = dep_task.get("status")
+        if dep_status != "ARCHIVED":
+            notes.append(f"(depends_on {dep}, Status: {dep_status})")
+    return "  ".join(notes)
+
+
+def _cmd_board(args, store) -> int:
+    now = datetime.now(timezone.utc)
+    rows = []
+    for task in _list_task_docs(store):
+        status = task.get("status")
+        if status not in _BOARD_STATES:
+            continue
+        task_id = task.get("bridge_task_id", "?")
+        ts = store.last_transition_at(task_id, status)
+        wait = "?"
+        if ts:
+            try:
+                when = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=timezone.utc)
+                wait = _fmt_wait((now - when).total_seconds())
+            except ValueError:
+                wait = "?"
+        rows.append((
+            task_id,
+            _board_project(store, task),
+            _BOARD_DIRECTION[status],
+            wait,
+            _board_depends_note(store, task),
+        ))
+
+    if not rows:
+        print("(keine Auftraege warten auf Kopie)")
+        return 0
+
+    rows.sort(key=lambda r: r[0])
+    print(f"{'#':<3}{'Projekt':<13}{'Auftrag':<13}{'Richtung':<24}Wartet seit")
+    for i, (task_id, projekt, richtung, wait, note) in enumerate(rows, start=1):
+        line = f"{i:<3}{projekt:<13}{task_id:<13}{richtung:<24}{wait}"
+        if note:
+            line = f"{line}  {note}"
+        print(line)
+    return 0
+
+
+def _cmd_commands(args, store) -> int:
+    base = registry.resolve_base(store.root, store.schema_dir,
+                                 explicit_machine=args.machine)
+    try:
+        profile = profiles.load_profile(store.root, args.project,
+                                        schema_dir=store.schema_dir)
+        repository = profile.get("repository", args.project)
+        test_cmd = (profile.get("test_policy") or {}).get("command")
+    except (profiles.ProfileError, StoreError):
+        repository = args.project
+        test_cmd = None
+    local_path = os.path.join(base, repository)
+    test_line = test_cmd or 'kein Testbefehl im Profil hinterlegt'
+
+    print("Board neu anzeigen:")
+    print("  bridge board")
+    print()
+    print("Bridge-Watcher starten (wiederholt pruefen, bis Ctrl+C; --apply nur nach")
+    print("Bestaetigung, s. Guardrails):")
+    print("  bridge watch loop --actor <dein-name>")
+    print()
+    print("Uebergabe an die andere Maschine vorbereiten (PowerShell):")
+    print(f"  cd {local_path}")
+    print("  .\\scripts\\handover-check.ps1")
+    print()
+    print("Uebergabe vorbereiten (Bash/WSL, falls zutreffend):")
+    print(f"  cd {local_path}")
+    print("  ./scripts/handover-check.sh")
+    print()
+    print("Tests dieses Projekts laufen lassen:")
+    print(f"  {test_line}")
+    return 0
+
+
 # --------------------------------------------------------------------------- #
 # Helfer
 # --------------------------------------------------------------------------- #
 
-def _list_tasks(store):
-    rows = []
+def _list_task_docs(store):
+    docs = []
     if not store.tasks_dir.exists():
-        return rows
+        return docs
     for entry in sorted(store.tasks_dir.iterdir()):
         if not (entry / "task.yaml").is_file():
             continue
         try:
-            task = store.load_task(entry.name)
+            docs.append(store.load_task(entry.name))
         except StoreError:
             continue
-        rows.append((task.get("bridge_task_id", entry.name), task.get("status", "?")))
-    return rows
+    return docs
+
+
+def _list_tasks(store):
+    return [(t.get("bridge_task_id", "?"), t.get("status", "?"))
+            for t in _list_task_docs(store)]
 
 
 def _recent_commits(root, count=3):
@@ -441,6 +573,8 @@ _DISPATCH = {
     "next-run": _cmd_next_run,
     "audit": _cmd_audit,
     "resume": _cmd_resume,
+    "board": _cmd_board,
+    "commands": _cmd_commands,
     "watch": _cmd_watch,
     "run": _cmd_run,
     "project": _cmd_project,
