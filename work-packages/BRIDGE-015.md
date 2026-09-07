@@ -109,14 +109,14 @@ Nachzug, neuer Format-Test.
 
 ## Akzeptanzkriterien
 
-- [ ] alle 5 Schema-Muster auf `^[A-Z]{1,8}-[0-9]{4}$` bzw. `^[A-Z]{1,8}$`
+- [x] alle 5 Schema-Muster auf `^[A-Z]{1,8}-[0-9]{4}$` bzw. `^[A-Z]{1,8}$`
       (geliefert, hier nur bestätigen)
-- [ ] `store.py`/`heartbeat.py` `_ID_RE` nachgezogen
-- [ ] `DORF-0001` (o. ä. Nicht-BRIDGE-Präfix) lässt sich anlegen/validieren
-- [ ] 3-stelliges Alt-Format wird abgelehnt (Regressionstest vorhanden)
-- [ ] gesamte Testsuite grün (alte Fixtures umgestellt + neuer Test)
-- [ ] README.md konsistent mit neuem Format
-- [ ] Pflicht-Footer am Ende
+- [x] `store.py`/`heartbeat.py` `_ID_RE` nachgezogen
+- [x] `DORF-0001` (o. ä. Nicht-BRIDGE-Präfix) lässt sich anlegen/validieren
+- [x] 3-stelliges Alt-Format wird abgelehnt (Regressionstest vorhanden)
+- [x] gesamte Testsuite grün (alte Fixtures umgestellt + neuer Test)
+- [x] README.md konsistent mit neuem Format
+- [x] Pflicht-Footer am Ende
 
 ## Nächster Auftrag
 
