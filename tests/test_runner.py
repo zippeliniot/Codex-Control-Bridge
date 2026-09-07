@@ -290,6 +290,17 @@ class CliRunTests(Base):
         self.assertNotIn("Traceback", err)
         self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "CREATED")
 
+    def test_task_copied_fails_closed_from_running(self):
+        # Auftrag läuft (RUNNING), war nie COMPLETED/WAITING_FOR_COPY_TO_CONTROL
+        # -> 'copied' muss fehlschlagen, obwohl RUNNING -> REVIEW_REQUIRED
+        # in der allgemeinen Übergangstabelle erlaubt ist.
+        self.cli("run", "start", "BRIDGE-900", "--actor", "a")
+        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "RUNNING")
+        code, _, err = self.cli("task", "copied", "BRIDGE-900", "--actor", "mensch")
+        self.assertEqual(code, 1)
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "RUNNING")
+
     def test_task_copied_requires_actor(self):
         code, _, err = self.cli("task", "copied", "BRIDGE-900")
         self.assertEqual(code, 2)

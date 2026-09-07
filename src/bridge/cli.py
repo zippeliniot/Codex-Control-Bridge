@@ -184,6 +184,14 @@ def _cmd_task(args, store) -> int:
             print(f"{task_id}\t{status}")
         return 0
     if args.task_cmd == "copied":
+        # Fail-closed: 'copied' garantiert, dass das Ergebnis wirklich kopiert
+        # wurde. Das ist nur aus WAITING_FOR_COPY_TO_CONTROL heraus zulässig;
+        # die allgemeine Übergangstabelle allein würde auch RUNNING durchlassen.
+        current = store.load_task(args.task_id).get("status")
+        if current != "WAITING_FOR_COPY_TO_CONTROL":
+            raise StoreError(
+                f"{args.task_id}: 'copied' nur aus WAITING_FOR_COPY_TO_CONTROL "
+                f"zulässig (aktueller Zustand: {current}).")
         event = store.set_status(args.task_id, "REVIEW_REQUIRED", args.actor, None,
                                  reason="Ergebnis in Steuerchat kopiert")
         print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']} "

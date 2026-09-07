@@ -190,6 +190,14 @@ neuen Zustände bzw. Ereignistypen ergänzt werden, sonst wäre jede
 Betroffene Bestandstests an das neue Auto-Chain-Verhalten angepasst
 (`test_cli.py`, `test_runner.py`). Gesamt 117 Tests grün (109 + 8 neue).
 
+## Nachbesserung RUN-02
+
+Review-Lücke geschlossen: `task copied` prüft jetzt vor dem Statuswechsel
+explizit, dass der Auftrag exakt in `WAITING_FOR_COPY_TO_CONTROL` steht, und
+schlägt sonst fail-closed fehl (Exit 1, kein Schreibzugriff). Vorher genügte die
+allgemeine Übergangstabelle, wodurch der Befehl auch aus `RUNNING` heraus
+durchlief. Neuer Test `test_task_copied_fails_closed_from_running` (118 Tests grün).
+
 ## Nächster Auftrag
 
 **BRIDGE-015 — Projekt-Registry + Copy-Paste-Board (Terminal).** Zeigt
