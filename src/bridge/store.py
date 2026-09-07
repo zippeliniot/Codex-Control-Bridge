@@ -70,7 +70,7 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-_ID_RE = re.compile(r"^BRIDGE-[0-9]{3,}$")
+_ID_RE = re.compile(r"^[A-Z]{1,8}-[0-9]{4}$")
 _RUN_RE = re.compile(r"^RUN-[0-9]{2,}$")
 _KIND_TO_SCHEMA = {
     "bridge_task": "task.schema.yaml",
