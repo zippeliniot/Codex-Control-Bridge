@@ -3,7 +3,10 @@
 **Projekt-ID:** CCB
 **Arbeitsname:** Codex Control Bridge
 **Status:** In Entwicklung — Stufe 0/1
-**Auftragsnummerierung:** `BRIDGE-001`, `BRIDGE-002`, `BRIDGE-003`, …
+**Auftrags-ID-Format:** `<PRÄFIX>-<NNNN>` — Präfix max. 8 Großbuchstaben, dann
+genau 4 Ziffern, projektübergreifend: `BRIDGE-0001`, `BRIDGE-0002`, …, auch
+`DORF-0001`. (Die Datei­namen der `work-packages/BRIDGE-xxx.md` bleiben davon
+unberührt 3-stellig.)
 
 Die **Codex Control Bridge** ist eine **projektunabhängige Vermittlungsschicht**
 für strukturierte Aufträge und Ergebnisse zwischen einem **Steuerprozess**
@@ -101,9 +104,9 @@ BRIDGE-004-Validator, der Audit-Ereignistyp stammt aus
 [`docs/protocols/storage-layout.md`](docs/protocols/storage-layout.md).
 
 ```
-python src/bridge/store.py create-task tasks/BRIDGE-042/task.yaml
-python src/bridge/store.py set-status BRIDGE-042 READY --actor steuerprozess
-python src/bridge/store.py next-run BRIDGE-042
+python src/bridge/store.py create-task tasks/BRIDGE-0042/task.yaml
+python src/bridge/store.py set-status BRIDGE-0042 READY --actor steuerprozess
+python src/bridge/store.py next-run BRIDGE-0042
 ```
 
 ---
@@ -179,7 +182,7 @@ Schlagen durch einen lebenden Executor übernimmt der Runner (BRIDGE-009).
 ```
 python src/bridge/cli.py --root . watch scan
 python src/bridge/cli.py --root . watch scan --apply --actor watcher
-python src/bridge/cli.py --root . watch heartbeat BRIDGE-042 RUN-01 --actor codex
+python src/bridge/cli.py --root . watch heartbeat BRIDGE-0042 RUN-01 --actor codex
 ```
 
 ---
@@ -207,10 +210,10 @@ Der Runner führt **niemals** Git-Aktionen aus. Zeit (`now`) und Git
 (`git_info_fn`) sind injizierbar → Tests hermetisch.
 
 ```
-python src/bridge/cli.py --root . run start  BRIDGE-042 --actor codex
-python src/bridge/cli.py --root . run beat   BRIDGE-042 --actor codex
-python src/bridge/cli.py --root . run finish BRIDGE-042 --status COMPLETED --actor codex --summary "…"
-python src/bridge/cli.py --root . run resume BRIDGE-042 --actor codex
+python src/bridge/cli.py --root . run start  BRIDGE-0042 --actor codex
+python src/bridge/cli.py --root . run beat   BRIDGE-0042 --actor codex
+python src/bridge/cli.py --root . run finish BRIDGE-0042 --status COMPLETED --actor codex --summary "…"
+python src/bridge/cli.py --root . run resume BRIDGE-0042 --actor codex
 ```
 
 ---
