@@ -45,6 +45,10 @@ def _build_parser() -> argparse.ArgumentParser:
     tsub.add_parser("create", help="Auftrag anlegen").add_argument("path")
     tsub.add_parser("show", help="Status + Kernfelder").add_argument("task_id")
     tsub.add_parser("list", help="alle Aufträge mit Status")
+    tcopied = tsub.add_parser(
+        "copied", help="Ergebnis wurde in den Steuerchat kopiert (-> REVIEW_REQUIRED)")
+    tcopied.add_argument("task_id")
+    tcopied.add_argument("--actor", required=True)
     tset = tsub.add_parser("set-status", help="Zustandswechsel")
     tset.add_argument("task_id")
     tset.add_argument("new_state")
@@ -154,7 +158,16 @@ def _cmd_validate(args, store) -> int:
 def _cmd_task(args, store) -> int:
     if args.task_cmd == "create":
         doc = store.create_task(args.path)
-        print(f"OK: {doc['bridge_task_id']} angelegt (status={doc['status']})")
+        task_id = doc["bridge_task_id"]
+        actor = doc.get("created_by", "unknown")
+        # Auto-Chain: frisch angelegter Auftrag wird sofort board-sichtbar,
+        # ohne dass der Nutzer zusätzliche Befehle tippen muss (BRIDGE-014).
+        store.set_status(task_id, "READY", actor, None,
+                         reason="auto: Auftrag angelegt")
+        event = store.set_status(task_id, "WAITING_FOR_HANDOFF_TO_EXECUTOR",
+                                 actor, None,
+                                 reason="auto: wartet auf Weitergabe an Executor")
+        print(f"OK: {task_id} angelegt (status={event['new_state']})")
         return 0
     if args.task_cmd == "show":
         task = store.load_task(args.task_id)
@@ -169,6 +182,12 @@ def _cmd_task(args, store) -> int:
             print("(keine Aufträge)")
         for task_id, status in rows:
             print(f"{task_id}\t{status}")
+        return 0
+    if args.task_cmd == "copied":
+        event = store.set_status(args.task_id, "REVIEW_REQUIRED", args.actor, None,
+                                 reason="Ergebnis in Steuerchat kopiert")
+        print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']} "
+              f"({event['event_type']})")
         return 0
     if args.task_cmd == "set-status":
         event = store.set_status(args.task_id, args.new_state, actor=args.actor,
