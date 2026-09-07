@@ -29,7 +29,7 @@ def valid_task(**over):
     doc = {
         "schema_version": "1.0",
         "kind": "bridge_task",
-        "bridge_task_id": "BRIDGE-900",
+        "bridge_task_id": "BRIDGE-0900",
         "project_id": "codex-control-bridge",
         "title": "Testauftrag",
         "description": "Nur für Tests.",
@@ -49,7 +49,7 @@ def valid_result(**over):
     doc = {
         "schema_version": "1.0",
         "kind": "bridge_result",
-        "bridge_task_id": "BRIDGE-900",
+        "bridge_task_id": "BRIDGE-0900",
         "project_id": "codex-control-bridge",
         "run_id": "RUN-01",
         "status": "COMPLETED",
@@ -88,7 +88,7 @@ class StoreTests(unittest.TestCase):
 
     def test_valid_task_writes_file_and_audit(self):
         self.store.create_task(valid_task())
-        path = self.tmp / "tasks" / "BRIDGE-900" / "task.yaml"
+        path = self.tmp / "tasks" / "BRIDGE-0900" / "task.yaml"
         self.assertTrue(path.exists())
         self.assertEqual(yaml.safe_load(path.read_text(encoding="utf-8"))["status"], "CREATED")
         self.assertEqual(self.event_types(), ["TASK_CREATED"])
@@ -98,7 +98,7 @@ class StoreTests(unittest.TestCase):
         del bad["title"]
         with self.assertRaises(SchemaValidationError):
             self.store.create_task(bad)
-        self.assertFalse((self.tmp / "tasks" / "BRIDGE-900").exists())
+        self.assertFalse((self.tmp / "tasks" / "BRIDGE-0900").exists())
         self.assertEqual(self.audit_events(), [])
 
     def test_invalid_task_unknown_field_rejected(self):
@@ -116,22 +116,22 @@ class StoreTests(unittest.TestCase):
 
     def test_allowed_transition(self):
         self.store.create_task(valid_task())
-        self.store.set_status("BRIDGE-900", "READY", actor="steuerprozess")
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "READY")
+        self.store.set_status("BRIDGE-0900", "READY", actor="steuerprozess")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "READY")
         self.assertEqual(self.event_types(), ["TASK_CREATED", "TASK_READY"])
 
     def test_disallowed_transition_no_side_effects(self):
         self.store.create_task(valid_task())
         with self.assertRaises(state_machine.TransitionError):
-            self.store.set_status("BRIDGE-900", "RUNNING", actor="x")
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "CREATED")
+            self.store.set_status("BRIDGE-0900", "RUNNING", actor="x")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "CREATED")
         self.assertEqual(self.event_types(), ["TASK_CREATED"])
 
     def test_resume_special_case(self):
         self.store.create_task(valid_task())
         for state in ("READY", "CLAIMED", "RUNNING", "INTERRUPTED", "WAITING_FOR_RESUME"):
-            self.store.set_status("BRIDGE-900", state, actor="x")
-        ev = self.store.set_status("BRIDGE-900", "RUNNING", actor="x")
+            self.store.set_status("BRIDGE-0900", state, actor="x")
+        ev = self.store.set_status("BRIDGE-0900", "RUNNING", actor="x")
         self.assertEqual(ev["event_type"], "TASK_RESUMED")
         self.assertEqual(self.event_types()[-1], "TASK_RESUMED")
 
@@ -139,19 +139,19 @@ class StoreTests(unittest.TestCase):
 
     def test_next_run_id(self):
         self.store.create_task(valid_task())
-        self.assertEqual(self.store.next_run_id("BRIDGE-900"), "RUN-01")
+        self.assertEqual(self.store.next_run_id("BRIDGE-0900"), "RUN-01")
         self.store.write_result(valid_result(run_id="RUN-01"))
-        self.assertEqual(self.store.next_run_id("BRIDGE-900"), "RUN-02")
+        self.assertEqual(self.store.next_run_id("BRIDGE-0900"), "RUN-02")
 
     def test_write_result_writes_file_and_audit(self):
         self.store.create_task(valid_task())
         self.store.write_result(valid_result())
-        self.assertTrue((self.tmp / "results" / "BRIDGE-900" / "RUN-01" / "result.yaml").exists())
+        self.assertTrue((self.tmp / "results" / "BRIDGE-0900" / "RUN-01" / "result.yaml").exists())
         self.assertEqual(self.event_types(), ["TASK_CREATED", "RESULT_WRITTEN"])
 
     def test_result_without_task_rejected(self):
         with self.assertRaises(StoreError):
-            self.store.write_result(valid_result(bridge_task_id="BRIDGE-901"))
+            self.store.write_result(valid_result(bridge_task_id="BRIDGE-0901"))
 
     def test_result_existing_run_rejected(self):
         self.store.create_task(valid_task())
@@ -163,9 +163,9 @@ class StoreTests(unittest.TestCase):
 
     def test_audit_append_only_and_schema_conform(self):
         self.store.create_task(valid_task())
-        self.store.set_status("BRIDGE-900", "READY", actor="x")
+        self.store.set_status("BRIDGE-0900", "READY", actor="x")
         first = (self.tmp / "audit" / "audit.jsonl").read_text(encoding="utf-8")
-        self.store.set_status("BRIDGE-900", "CLAIMED", actor="x")
+        self.store.set_status("BRIDGE-0900", "CLAIMED", actor="x")
         second = (self.tmp / "audit" / "audit.jsonl").read_text(encoding="utf-8")
         self.assertTrue(second.startswith(first))
         schema = yaml.safe_load((SCHEMA_DIR / "audit-event.schema.yaml").read_text(encoding="utf-8"))
@@ -177,7 +177,7 @@ class StoreTests(unittest.TestCase):
         with self.assertRaises(StoreError):
             self.store.load_task("../../evil")
         with self.assertRaises(StoreError):
-            self.store.next_run_id("BRIDGE-900/../../evil")
+            self.store.next_run_id("BRIDGE-0900/../../evil")
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ T0 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 def valid_task(**over):
     doc = {
         "schema_version": "1.0", "kind": "bridge_task",
-        "bridge_task_id": "BRIDGE-900", "project_id": "codex-control-bridge",
+        "bridge_task_id": "BRIDGE-0900", "project_id": "codex-control-bridge",
         "title": "Testauftrag", "description": "Nur für Tests.",
         "task_class": "FEATURE", "repository": "Codex-Control-Bridge",
         "branch": "main", "permissions": ["READ_ONLY"], "status": "CREATED",
@@ -60,7 +60,7 @@ class Base(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def audit_types(self, task_id="BRIDGE-900"):
+    def audit_types(self, task_id="BRIDGE-0900"):
         f = self.tmp / "audit" / "audit.jsonl"
         out = []
         for line in f.read_text(encoding="utf-8").splitlines():
@@ -78,34 +78,34 @@ class Base(unittest.TestCase):
 
 class StartTests(Base):
     def test_start_from_created(self):
-        run_id = runner.start(self.store, "BRIDGE-900", "a", machine="DES11", now=T0)
+        run_id = runner.start(self.store, "BRIDGE-0900", "a", machine="DES11", now=T0)
         self.assertEqual(run_id, "RUN-01")
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "RUNNING")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "RUNNING")
         self.assertTrue(
-            heartbeat.heartbeat_path(self.tmp, "BRIDGE-900", "RUN-01").exists())
+            heartbeat.heartbeat_path(self.tmp, "BRIDGE-0900", "RUN-01").exists())
         self.assertEqual(self.audit_types(),
                          ["TASK_CREATED", "TASK_READY", "TASK_WAITING_FOR_HANDOFF",
                           "TASK_CLAIMED", "TASK_STARTED"])
 
     def test_start_from_claimed_only_missing_step(self):
-        self.store.set_status("BRIDGE-900", "READY", actor="a")
-        self.store.set_status("BRIDGE-900", "CLAIMED", actor="a")
-        runner.start(self.store, "BRIDGE-900", "a", now=T0)
+        self.store.set_status("BRIDGE-0900", "READY", actor="a")
+        self.store.set_status("BRIDGE-0900", "CLAIMED", actor="a")
+        runner.start(self.store, "BRIDGE-0900", "a", now=T0)
         self.assertEqual(self.audit_types(),
                          ["TASK_CREATED", "TASK_READY", "TASK_CLAIMED", "TASK_STARTED"])
 
     def test_start_on_running_fails_closed(self):
-        runner.start(self.store, "BRIDGE-900", "a", now=T0)
+        runner.start(self.store, "BRIDGE-0900", "a", now=T0)
         with self.assertRaises(runner.RunnerError):
-            runner.start(self.store, "BRIDGE-900", "a", now=T0)
+            runner.start(self.store, "BRIDGE-0900", "a", now=T0)
 
     def test_start_from_waiting_for_handoff(self):
         # Normalfall (BRIDGE-014): Mensch hat kopiert, Auftrag steht im Wartezustand.
-        self.store.set_status("BRIDGE-900", "READY", actor="a")
-        self.store.set_status("BRIDGE-900", "WAITING_FOR_HANDOFF_TO_EXECUTOR", actor="a")
-        run_id = runner.start(self.store, "BRIDGE-900", "a", now=T0)
+        self.store.set_status("BRIDGE-0900", "READY", actor="a")
+        self.store.set_status("BRIDGE-0900", "WAITING_FOR_HANDOFF_TO_EXECUTOR", actor="a")
+        run_id = runner.start(self.store, "BRIDGE-0900", "a", now=T0)
         self.assertEqual(run_id, "RUN-01")
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "RUNNING")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "RUNNING")
         self.assertEqual(self.audit_types(),
                          ["TASK_CREATED", "TASK_READY", "TASK_WAITING_FOR_HANDOFF",
                           "TASK_CLAIMED", "TASK_STARTED"])
@@ -113,81 +113,81 @@ class StartTests(Base):
 
 class BeatTests(Base):
     def test_beat_updates_last_seen_of_current_run(self):
-        runner.start(self.store, "BRIDGE-900", "a", now=T0)
-        d = runner.beat(self.store, "BRIDGE-900", actor="a",
+        runner.start(self.store, "BRIDGE-0900", "a", now=T0)
+        d = runner.beat(self.store, "BRIDGE-0900", actor="a",
                         now=T0 + timedelta(minutes=3))
         self.assertEqual(d["run_id"], "RUN-01")
         self.assertEqual(d["last_seen"], "2026-01-01T00:03:00Z")
         self.assertEqual(
-            heartbeat.read_heartbeat(self.tmp, "BRIDGE-900", "RUN-01")["last_seen"],
+            heartbeat.read_heartbeat(self.tmp, "BRIDGE-0900", "RUN-01")["last_seen"],
             "2026-01-01T00:03:00Z")
 
     def test_beat_not_running_fails(self):
         with self.assertRaises(runner.RunnerError):
-            runner.beat(self.store, "BRIDGE-900", actor="a")
+            runner.beat(self.store, "BRIDGE-0900", actor="a")
 
 
 class FinishTests(Base):
     def test_finish_completed_writes_result_and_status(self):
-        runner.start(self.store, "BRIDGE-900", "a", now=T0)
+        runner.start(self.store, "BRIDGE-0900", "a", now=T0)
         result, event = runner.finish(
-            self.store, "BRIDGE-900", "COMPLETED",
+            self.store, "BRIDGE-0900", "COMPLETED",
             actor="a", git_info_fn=git_stub, summary="fertig")
         self.assertEqual(result["run_id"], "RUN-01")
         self.assertEqual(result["started_at"], "2026-01-01T00:00:00Z")  # aus Heartbeat
         self.assertEqual(result["summary"], "fertig")
-        self.assertTrue((self.tmp / "results" / "BRIDGE-900" / "RUN-01"
+        self.assertTrue((self.tmp / "results" / "BRIDGE-0900" / "RUN-01"
                          / "result.yaml").exists())
         # BRIDGE-014: Erfolgspfad schaltet automatisch weiter in den Wartezustand.
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"],
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"],
                          "WAITING_FOR_COPY_TO_CONTROL")
         self.assertEqual(event["new_state"], "WAITING_FOR_COPY_TO_CONTROL")
         self.assertIn("TASK_COMPLETED", self.audit_types())
         self.assertIn("TASK_WAITING_FOR_COPY", self.audit_types())
 
     def test_finish_disallowed_transition_writes_nothing(self):
-        runner.start(self.store, "BRIDGE-900", "a", now=T0)
+        runner.start(self.store, "BRIDGE-0900", "a", now=T0)
         before = (self.tmp / "audit" / "audit.jsonl").read_text(encoding="utf-8")
         with self.assertRaises(runner.RunnerError):
-            runner.finish(self.store, "BRIDGE-900", "READY",
+            runner.finish(self.store, "BRIDGE-0900", "READY",
                           actor="a", git_info_fn=git_stub)
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "RUNNING")
-        self.assertFalse((self.tmp / "results" / "BRIDGE-900" / "RUN-01"
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "RUNNING")
+        self.assertFalse((self.tmp / "results" / "BRIDGE-0900" / "RUN-01"
                           / "result.yaml").exists())
         self.assertEqual(
             (self.tmp / "audit" / "audit.jsonl").read_text(encoding="utf-8"), before)
 
     def test_finish_not_running_fails(self):
         with self.assertRaises(runner.RunnerError):
-            runner.finish(self.store, "BRIDGE-900", "COMPLETED",
+            runner.finish(self.store, "BRIDGE-0900", "COMPLETED",
                           actor="a", git_info_fn=git_stub)
 
     def test_finish_failed_stays_at_failed_no_auto_chain(self):
-        runner.start(self.store, "BRIDGE-900", "a", now=T0)
+        runner.start(self.store, "BRIDGE-0900", "a", now=T0)
         _, event = runner.finish(
-            self.store, "BRIDGE-900", "FAILED",
+            self.store, "BRIDGE-0900", "FAILED",
             actor="a", git_info_fn=git_stub)
         self.assertEqual(event["new_state"], "FAILED")
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "FAILED")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "FAILED")
         self.assertNotIn("TASK_WAITING_FOR_COPY", self.audit_types())
 
 
 class ResumeTests(Base):
     def _interrupt(self):
-        runner.start(self.store, "BRIDGE-900", "a", now=T0)
-        runner.finish(self.store, "BRIDGE-900", "INTERRUPTED", actor="a",
+        runner.start(self.store, "BRIDGE-0900", "a", now=T0)
+        runner.finish(self.store, "BRIDGE-0900", "INTERRUPTED", actor="a",
                       git_info_fn=git_stub,
                       draft=self.interrupt_draft(resume_hint="ab Kriterium 2"))
 
     def test_resume_from_interrupted(self):
         self._interrupt()
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "INTERRUPTED")
-        new_run = runner.resume(self.store, "BRIDGE-900", "a",
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "INTERRUPTED")
+        new_run = runner.resume(self.store, "BRIDGE-0900", "a",
                                 now=T0 + timedelta(hours=1))
         self.assertEqual(new_run, "RUN-02")
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "RUNNING")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "RUNNING")
         self.assertEqual(
-            heartbeat.read_heartbeat(self.tmp, "BRIDGE-900", "RUN-02")["last_seen"],
+            heartbeat.read_heartbeat(self.tmp, "BRIDGE-0900", "RUN-02")["last_seen"],
             "2026-01-01T01:00:00Z")
         types = self.audit_types()
         self.assertIn("TASK_WAITING_FOR_RESUME", types)
@@ -197,24 +197,24 @@ class ResumeTests(Base):
 
     def test_resume_from_non_resumable_status_fails(self):
         with self.assertRaises(runner.RunnerError):   # frischer Task ist CREATED
-            runner.resume(self.store, "BRIDGE-900", "a")
+            runner.resume(self.store, "BRIDGE-0900", "a")
 
     def test_resume_hint_surfaces_from_last_result(self):
         self._interrupt()
-        self.assertEqual(runner.last_resume_hint(self.store, "BRIDGE-900"),
+        self.assertEqual(runner.last_resume_hint(self.store, "BRIDGE-0900"),
                          "ab Kriterium 2")
 
 
 class RunIdInterplayTests(Base):
     def test_start_finish_resume_run_ids(self):
-        self.assertIsNone(runner.current_run_id(self.store, "BRIDGE-900"))
-        self.assertEqual(runner.start(self.store, "BRIDGE-900", "a", now=T0), "RUN-01")
-        self.assertEqual(runner.current_run_id(self.store, "BRIDGE-900"), "RUN-01")
-        runner.finish(self.store, "BRIDGE-900", "INTERRUPTED", actor="a",
+        self.assertIsNone(runner.current_run_id(self.store, "BRIDGE-0900"))
+        self.assertEqual(runner.start(self.store, "BRIDGE-0900", "a", now=T0), "RUN-01")
+        self.assertEqual(runner.current_run_id(self.store, "BRIDGE-0900"), "RUN-01")
+        runner.finish(self.store, "BRIDGE-0900", "INTERRUPTED", actor="a",
                       git_info_fn=git_stub, draft=self.interrupt_draft())
-        self.assertEqual(self.store.next_run_id("BRIDGE-900"), "RUN-02")
-        self.assertEqual(runner.resume(self.store, "BRIDGE-900", "a", now=T0), "RUN-02")
-        self.assertEqual(runner.current_run_id(self.store, "BRIDGE-900"), "RUN-02")
+        self.assertEqual(self.store.next_run_id("BRIDGE-0900"), "RUN-02")
+        self.assertEqual(runner.resume(self.store, "BRIDGE-0900", "a", now=T0), "RUN-02")
+        self.assertEqual(runner.current_run_id(self.store, "BRIDGE-0900"), "RUN-02")
 
 
 class CliRunTests(Base):
@@ -226,32 +226,32 @@ class CliRunTests(Base):
         return code, out.getvalue(), err.getvalue()
 
     def test_run_start_beat_finish(self):
-        code, _, err = self.cli("run", "start", "BRIDGE-900", "--actor", "a")
+        code, _, err = self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
         self.assertEqual(code, 0, err)
-        code, _, err = self.cli("run", "beat", "BRIDGE-900", "--actor", "a")
+        code, _, err = self.cli("run", "beat", "BRIDGE-0900", "--actor", "a")
         self.assertEqual(code, 0, err)
         with mock.patch.object(importer, "collect_git_info", git_stub):
-            code, out, err = self.cli("run", "finish", "BRIDGE-900",
+            code, out, err = self.cli("run", "finish", "BRIDGE-0900",
                                       "--status", "COMPLETED", "--actor", "a")
         self.assertEqual(code, 0, err)
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"],
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"],
                          "WAITING_FOR_COPY_TO_CONTROL")
 
     def test_run_start_requires_actor(self):
-        code, _, err = self.cli("run", "start", "BRIDGE-900")
+        code, _, err = self.cli("run", "start", "BRIDGE-0900")
         self.assertEqual(code, 2)
         self.assertNotIn("Traceback", err)
 
     def test_run_beat_requires_actor(self):
-        self.cli("run", "start", "BRIDGE-900", "--actor", "a")
-        code, _, err = self.cli("run", "beat", "BRIDGE-900")
+        self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
+        code, _, err = self.cli("run", "beat", "BRIDGE-0900")
         self.assertEqual(code, 2)
         self.assertNotIn("Traceback", err)
 
     def test_run_finish_disallowed_via_cli(self):
-        self.cli("run", "start", "BRIDGE-900", "--actor", "a")
+        self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
         with mock.patch.object(importer, "collect_git_info", git_stub):
-            code, _, err = self.cli("run", "finish", "BRIDGE-900",
+            code, _, err = self.cli("run", "finish", "BRIDGE-0900",
                                     "--status", "READY", "--actor", "a")
         self.assertEqual(code, 1)
         self.assertNotIn("Traceback", err)
@@ -262,7 +262,7 @@ class CliRunTests(Base):
         self.addCleanup(shutil.rmtree, tmp2, True)
         for name in ("tasks", "results", "audit"):
             (tmp2 / name).mkdir()
-        doc = valid_task(bridge_task_id="BRIDGE-901")
+        doc = valid_task(bridge_task_id="BRIDGE-0901")
         p = tmp2 / "t.yaml"
         p.write_text(yaml.safe_dump(doc), encoding="utf-8")
         out_, err_ = io.StringIO(), io.StringIO()
@@ -271,38 +271,38 @@ class CliRunTests(Base):
                          "task", "create", str(p)])
         self.assertEqual(code, 0, err_.getvalue())
         self.assertIn("status=WAITING_FOR_HANDOFF_TO_EXECUTOR", out_.getvalue())
-        st = Store(root=tmp2, schema_dir=SCHEMA_DIR).load_task("BRIDGE-901")
+        st = Store(root=tmp2, schema_dir=SCHEMA_DIR).load_task("BRIDGE-0901")
         self.assertEqual(st["status"], "WAITING_FOR_HANDOFF_TO_EXECUTOR")
 
     def test_task_copied_from_waiting_for_copy(self):
-        self.cli("run", "start", "BRIDGE-900", "--actor", "a")
+        self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
         with mock.patch.object(importer, "collect_git_info", git_stub):
-            self.cli("run", "finish", "BRIDGE-900", "--status", "COMPLETED", "--actor", "a")
-        code, out, err = self.cli("task", "copied", "BRIDGE-900", "--actor", "mensch")
+            self.cli("run", "finish", "BRIDGE-0900", "--status", "COMPLETED", "--actor", "a")
+        code, out, err = self.cli("task", "copied", "BRIDGE-0900", "--actor", "mensch")
         self.assertEqual(code, 0, err)
         self.assertIn("REVIEW_REQUIRED", out)
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "REVIEW_REQUIRED")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "REVIEW_REQUIRED")
 
     def test_task_copied_fails_closed_from_other_state(self):
         # Auftrag steht auf CREATED (setUp) -> Übergang nach REVIEW_REQUIRED unzulässig
-        code, _, err = self.cli("task", "copied", "BRIDGE-900", "--actor", "mensch")
+        code, _, err = self.cli("task", "copied", "BRIDGE-0900", "--actor", "mensch")
         self.assertEqual(code, 1)
         self.assertNotIn("Traceback", err)
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "CREATED")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "CREATED")
 
     def test_task_copied_fails_closed_from_running(self):
         # Auftrag läuft (RUNNING), war nie COMPLETED/WAITING_FOR_COPY_TO_CONTROL
         # -> 'copied' muss fehlschlagen, obwohl RUNNING -> REVIEW_REQUIRED
         # in der allgemeinen Übergangstabelle erlaubt ist.
-        self.cli("run", "start", "BRIDGE-900", "--actor", "a")
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "RUNNING")
-        code, _, err = self.cli("task", "copied", "BRIDGE-900", "--actor", "mensch")
+        self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "RUNNING")
+        code, _, err = self.cli("task", "copied", "BRIDGE-0900", "--actor", "mensch")
         self.assertEqual(code, 1)
         self.assertNotIn("Traceback", err)
-        self.assertEqual(self.store.load_task("BRIDGE-900")["status"], "RUNNING")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "RUNNING")
 
     def test_task_copied_requires_actor(self):
-        code, _, err = self.cli("task", "copied", "BRIDGE-900")
+        code, _, err = self.cli("task", "copied", "BRIDGE-0900")
         self.assertEqual(code, 2)
         self.assertNotIn("Traceback", err)
 

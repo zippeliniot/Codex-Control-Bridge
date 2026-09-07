@@ -23,7 +23,7 @@ def task_doc(**over):
     doc = {
         "schema_version": "1.0",
         "kind": "bridge_task",
-        "bridge_task_id": "BRIDGE-900",
+        "bridge_task_id": "BRIDGE-0900",
         "project_id": "codex-control-bridge",
         "title": "Testauftrag",
         "description": "Nur für Tests.",
@@ -43,7 +43,7 @@ def result_doc(**over):
     doc = {
         "schema_version": "1.0",
         "kind": "bridge_result",
-        "bridge_task_id": "BRIDGE-900",
+        "bridge_task_id": "BRIDGE-0900",
         "project_id": "codex-control-bridge",
         "run_id": "RUN-01",
         "status": "COMPLETED",
@@ -102,7 +102,7 @@ class CliTests(unittest.TestCase):
         path = self.write_yaml("t.yaml", task_doc())
         code, _, _ = self.cli("task", "create", str(path))
         self.assertEqual(code, 0)
-        self.assertTrue((self.tmp / "tasks" / "BRIDGE-900" / "task.yaml").exists())
+        self.assertTrue((self.tmp / "tasks" / "BRIDGE-0900" / "task.yaml").exists())
         code, _, err = self.cli("task", "create", str(path))
         self.assertEqual(code, 1)
         self.assertNotIn("Traceback", err)
@@ -111,12 +111,12 @@ class CliTests(unittest.TestCase):
         self.cli("task", "create", str(self.write_yaml("t.yaml", task_doc())))
         code, out, _ = self.cli("task", "list")
         self.assertEqual(code, 0)
-        self.assertIn("BRIDGE-900", out)
+        self.assertIn("BRIDGE-0900", out)
         # BRIDGE-014: task create schaltet automatisch bis zum Wartezustand durch.
         self.assertIn("WAITING_FOR_HANDOFF_TO_EXECUTOR", out)
 
     def test_task_show_unknown(self):
-        code, _, err = self.cli("task", "show", "BRIDGE-404")
+        code, _, err = self.cli("task", "show", "BRIDGE-0404")
         self.assertEqual(code, 1)
         self.assertNotIn("Traceback", err)
 
@@ -125,24 +125,24 @@ class CliTests(unittest.TestCase):
     def test_set_status_allowed_then_disallowed(self):
         self.cli("task", "create", str(self.write_yaml("t.yaml", task_doc())))
         # Auftrag steht nach create bei WAITING_FOR_HANDOFF_TO_EXECUTOR (BRIDGE-014).
-        code, _, _ = self.cli("task", "set-status", "BRIDGE-900", "CLAIMED", "--actor", "x")
+        code, _, _ = self.cli("task", "set-status", "BRIDGE-0900", "CLAIMED", "--actor", "x")
         self.assertEqual(code, 0)
-        _, out, _ = self.cli("task", "show", "BRIDGE-900")
+        _, out, _ = self.cli("task", "show", "BRIDGE-0900")
         self.assertIn("status: CLAIMED", out)
-        code, _, err = self.cli("task", "set-status", "BRIDGE-900", "COMPLETED", "--actor", "x")
+        code, _, err = self.cli("task", "set-status", "BRIDGE-0900", "COMPLETED", "--actor", "x")
         self.assertEqual(code, 1)
-        _, out, _ = self.cli("task", "show", "BRIDGE-900")
+        _, out, _ = self.cli("task", "show", "BRIDGE-0900")
         self.assertIn("status: CLAIMED", out)
 
     # -- result / next-run --------------------------------------
 
     def test_result_write_and_next_run(self):
         self.cli("task", "create", str(self.write_yaml("t.yaml", task_doc())))
-        _, out, _ = self.cli("next-run", "BRIDGE-900")
+        _, out, _ = self.cli("next-run", "BRIDGE-0900")
         self.assertEqual(out.strip(), "RUN-01")
         code, _, _ = self.cli("result", "write", str(self.write_yaml("r.yaml", result_doc())))
         self.assertEqual(code, 0)
-        _, out, _ = self.cli("next-run", "BRIDGE-900")
+        _, out, _ = self.cli("next-run", "BRIDGE-0900")
         self.assertEqual(out.strip(), "RUN-02")
 
     def test_result_write_without_task(self):
@@ -155,22 +155,22 @@ class CliTests(unittest.TestCase):
     def test_audit_show_filter(self):
         self.cli("task", "create", str(self.write_yaml("a.yaml", task_doc())))
         self.cli("task", "create", str(self.write_yaml(
-            "b.yaml", task_doc(bridge_task_id="BRIDGE-901"))))
-        code, out, _ = self.cli("audit", "show", "BRIDGE-900")
+            "b.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
+        code, out, _ = self.cli("audit", "show", "BRIDGE-0900")
         self.assertEqual(code, 0)
         lines = [x for x in out.splitlines() if x.strip()]
         self.assertTrue(lines)
-        self.assertTrue(all("BRIDGE-900" in x for x in lines))
-        self.assertFalse(any("BRIDGE-901" in x for x in lines))
+        self.assertTrue(all("BRIDGE-0900" in x for x in lines))
+        self.assertFalse(any("BRIDGE-0901" in x for x in lines))
 
     # -- resume ------------------------------------------------
 
     def test_resume(self):
         self.cli("task", "create", str(self.write_yaml("t.yaml", task_doc())))
         (self.tmp / "work-packages").mkdir()
-        (self.tmp / "work-packages" / "BRIDGE-900.md").write_text(
-            "# BRIDGE-900\n- [x] fertig\n- [ ] offen A\n- [ ] offen B\n", encoding="utf-8")
-        code, out, _ = self.cli("resume", "BRIDGE-900")
+        (self.tmp / "work-packages" / "BRIDGE-0900.md").write_text(
+            "# BRIDGE-0900\n- [x] fertig\n- [ ] offen A\n- [ ] offen B\n", encoding="utf-8")
+        code, out, _ = self.cli("resume", "BRIDGE-0900")
         self.assertEqual(code, 0)
         self.assertIn("WAITING_FOR_HANDOFF_TO_EXECUTOR", out)
         self.assertIn("RUN-01", out)
@@ -179,7 +179,7 @@ class CliTests(unittest.TestCase):
 
     def test_resume_missing_work_package(self):
         self.cli("task", "create", str(self.write_yaml("t.yaml", task_doc())))
-        code, out, _ = self.cli("resume", "BRIDGE-900")
+        code, out, _ = self.cli("resume", "BRIDGE-0900")
         self.assertEqual(code, 0)
         self.assertIn("nicht gefunden", out)
 
@@ -189,7 +189,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(main([]), 2)
         self.assertEqual(main(["--root", str(self.tmp), "bogus"]), 2)
         self.assertEqual(
-            main(["--root", str(self.tmp), "task", "set-status", "BRIDGE-900", "READY"]), 2)
+            main(["--root", str(self.tmp), "task", "set-status", "BRIDGE-0900", "READY"]), 2)
 
 
 if __name__ == "__main__":

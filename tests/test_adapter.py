@@ -68,7 +68,7 @@ def ro_profile(**over):
 def valid_task(**over):
     doc = {
         "schema_version": "1.0", "kind": "bridge_task",
-        "bridge_task_id": "BRIDGE-900", "project_id": "codex-control-bridge",
+        "bridge_task_id": "BRIDGE-0900", "project_id": "codex-control-bridge",
         "title": "Testauftrag", "description": "Nur für Tests.",
         "task_class": "FEATURE", "repository": "Codex-Control-Bridge",
         "branch": "main", "permissions": ["READ_ONLY"], "status": "CREATED",
@@ -158,14 +158,14 @@ class IntegrationTests(Base):
         head_before = _git_out(self.repo, "rev-parse", "HEAD")
 
         result = importer.import_result(
-            store, "BRIDGE-900", "COMPLETED",
+            store, "BRIDGE-0900", "COMPLETED",
             draft={"summary": "Dorfschaft-Stand read-only gelesen."},
             git_info_fn=a.as_git_info_fn(),
         )
 
         self.assertEqual(result["repository"], "dorfschaft")
         self.assertEqual(result["head"], head_before)
-        path = ccb_root / "results" / "BRIDGE-900" / "RUN-01" / "result.yaml"
+        path = ccb_root / "results" / "BRIDGE-0900" / "RUN-01" / "result.yaml"
         self.assertTrue(path.exists())
         store.validate(result)
         # fremdes Repo bleibt unveraendert

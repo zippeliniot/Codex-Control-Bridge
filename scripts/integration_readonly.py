@@ -27,7 +27,7 @@ sys.path.insert(0, str(_REPO_ROOT / "src"))
 from bridge import adapter, importer
 from bridge.store import Store
 
-DEFAULT_TASK_ID = "BRIDGE-912"  # interner Beobachtungs-Auftrag (nur im Scratch-Store)
+DEFAULT_TASK_ID = "BRIDGE-0912"  # interner Beobachtungs-Auftrag (nur im Scratch-Store)
 
 
 def _git(target, *args: str) -> str:

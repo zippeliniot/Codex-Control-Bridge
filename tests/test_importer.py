@@ -34,7 +34,7 @@ def valid_task(**over):
     doc = {
         "schema_version": "1.0",
         "kind": "bridge_task",
-        "bridge_task_id": "BRIDGE-900",
+        "bridge_task_id": "BRIDGE-0900",
         "project_id": "codex-control-bridge",
         "title": "Testauftrag",
         "description": "Nur für Tests.",
@@ -81,14 +81,14 @@ class ImporterTests(unittest.TestCase):
                 for x in f.read_text(encoding="utf-8").splitlines() if x.strip()]
 
     def result_on_disk(self, run_id="RUN-01"):
-        path = self.tmp / "results" / "BRIDGE-900" / run_id / "result.yaml"
+        path = self.tmp / "results" / "BRIDGE-0900" / run_id / "result.yaml"
         return path, yaml.safe_load(path.read_text(encoding="utf-8"))
 
     # -- Grundfall -----------------------------------------------------
 
     def test_completed_draft_writes_valid_result_and_audit(self):
         res = importer.import_result(
-            self.store, "BRIDGE-900", "COMPLETED",
+            self.store, "BRIDGE-0900", "COMPLETED",
             draft={"summary": "fertig", "started_at": TS},
             git_info_fn=git_stub,
         )
@@ -100,35 +100,35 @@ class ImporterTests(unittest.TestCase):
         self.assertEqual(doc["summary"], "fertig")
 
     def test_project_id_taken_from_task(self):
-        doc = importer.build_result(self.store, "BRIDGE-900", "COMPLETED",
+        doc = importer.build_result(self.store, "BRIDGE-0900", "COMPLETED",
                                     git_info_fn=git_stub)
         self.assertEqual(doc["project_id"], "codex-control-bridge")
 
     def test_run_id_default_and_explicit(self):
-        importer.import_result(self.store, "BRIDGE-900", "COMPLETED",
+        importer.import_result(self.store, "BRIDGE-0900", "COMPLETED",
                                git_info_fn=git_stub)
         _, doc = self.result_on_disk("RUN-01")
         self.assertEqual(doc["run_id"], "RUN-01")
-        importer.import_result(self.store, "BRIDGE-900", "COMPLETED",
+        importer.import_result(self.store, "BRIDGE-0900", "COMPLETED",
                                run_id="RUN-07", git_info_fn=git_stub)
         _, doc = self.result_on_disk("RUN-07")
         self.assertEqual(doc["run_id"], "RUN-07")
 
     def test_timestamps(self):
         doc = importer.build_result(
-            self.store, "BRIDGE-900", "COMPLETED",
+            self.store, "BRIDGE-0900", "COMPLETED",
             draft={"started_at": "2025-12-31T09:00:00Z"}, git_info_fn=git_stub,
         )
         self.assertRegex(doc["ended_at"], RFC3339)
         self.assertEqual(doc["started_at"], "2025-12-31T09:00:00Z")
 
     def test_started_at_defaults_to_ended_at(self):
-        doc = importer.build_result(self.store, "BRIDGE-900", "COMPLETED",
+        doc = importer.build_result(self.store, "BRIDGE-0900", "COMPLETED",
                                     git_info_fn=git_stub)
         self.assertEqual(doc["started_at"], doc["ended_at"])
 
     def test_git_fields_from_stub(self):
-        doc = importer.build_result(self.store, "BRIDGE-900", "COMPLETED",
+        doc = importer.build_result(self.store, "BRIDGE-0900", "COMPLETED",
                                     git_info_fn=git_stub)
         self.assertEqual(doc["repository"], "Codex-Control-Bridge")
         self.assertEqual(doc["branch"], "feature/importer")
@@ -139,7 +139,7 @@ class ImporterTests(unittest.TestCase):
 
     def test_flag_beats_draft(self):
         doc = importer.build_result(
-            self.store, "BRIDGE-900", "COMPLETED",
+            self.store, "BRIDGE-0900", "COMPLETED",
             draft={"summary": "aus entwurf"}, summary="aus flag",
             git_info_fn=git_stub,
         )
@@ -149,13 +149,13 @@ class ImporterTests(unittest.TestCase):
 
     def test_interrupted_without_reason_fails_closed(self):
         with self.assertRaises(SchemaValidationError):
-            importer.import_result(self.store, "BRIDGE-900", "INTERRUPTED",
+            importer.import_result(self.store, "BRIDGE-0900", "INTERRUPTED",
                                    git_info_fn=git_stub)
-        self.assertFalse((self.tmp / "results" / "BRIDGE-900" / "RUN-01").exists())
+        self.assertFalse((self.tmp / "results" / "BRIDGE-0900" / "RUN-01").exists())
 
     def test_interrupted_with_reason_and_resumable_ok(self):
         doc = importer.import_result(
-            self.store, "BRIDGE-900", "INTERRUPTED",
+            self.store, "BRIDGE-0900", "INTERRUPTED",
             draft={"interruption_reason": "USAGE_LIMIT", "resumable": True,
                    "resume_hint": "ab Kriterium 3"},
             git_info_fn=git_stub,
@@ -165,14 +165,14 @@ class ImporterTests(unittest.TestCase):
 
     def test_unknown_task_fails_closed(self):
         with self.assertRaises(StoreError):
-            importer.import_result(self.store, "BRIDGE-404", "COMPLETED",
+            importer.import_result(self.store, "BRIDGE-0404", "COMPLETED",
                                    git_info_fn=git_stub)
 
     def test_git_error_fails_closed(self):
         def boom(root=None, base_head=None):
             raise importer.ImporterError("git kaputt")
         with self.assertRaises(importer.ImporterError):
-            importer.import_result(self.store, "BRIDGE-900", "COMPLETED",
+            importer.import_result(self.store, "BRIDGE-0900", "COMPLETED",
                                    git_info_fn=boom)
 
     # -- CLI --------------------------------------------------------
@@ -186,16 +186,16 @@ class ImporterTests(unittest.TestCase):
 
     def test_cli_import_completed(self):
         with mock.patch.object(importer, "collect_git_info", git_stub):
-            code, out, err = self.cli("result", "import", "BRIDGE-900",
+            code, out, err = self.cli("result", "import", "BRIDGE-0900",
                                       "--status", "COMPLETED")
         self.assertEqual(code, 0, err)
         self.assertIn("RUN-01", out)
-        self.assertTrue((self.tmp / "results" / "BRIDGE-900" / "RUN-01"
+        self.assertTrue((self.tmp / "results" / "BRIDGE-0900" / "RUN-01"
                          / "result.yaml").exists())
 
     def test_cli_import_without_status_is_usage_error(self):
         with mock.patch.object(importer, "collect_git_info", git_stub):
-            code, _, err = self.cli("result", "import", "BRIDGE-900")
+            code, _, err = self.cli("result", "import", "BRIDGE-0900")
         self.assertEqual(code, 2)
         self.assertNotIn("Traceback", err)
 
