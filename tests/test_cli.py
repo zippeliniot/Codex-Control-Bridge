@@ -1,12 +1,14 @@
 """Hermetische Tests für die CLI (BRIDGE-006). stdlib unittest, tempdir als --root."""
 
 import io
+import os
 import shutil
 import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -182,6 +184,124 @@ class CliTests(unittest.TestCase):
         code, out, _ = self.cli("resume", "BRIDGE-0900")
         self.assertEqual(code, 0)
         self.assertIn("nicht gefunden", out)
+
+    # -- board (BRIDGE-016) ---------------------------------
+
+    def _walk_to_waiting_copy(self, task_id):
+        for st in ("CLAIMED", "RUNNING", "COMPLETED", "WAITING_FOR_COPY_TO_CONTROL"):
+            self.cli("task", "set-status", task_id, st, "--actor", "x")
+
+    def test_board_empty_store(self):
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertIn("(keine Auftraege warten auf Kopie)", out)
+
+    def test_board_shows_both_waiting_states_ignores_others(self):
+        self.cli("task", "create", str(self.write_yaml(
+            "t1.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
+        self.cli("task", "create", str(self.write_yaml(
+            "t2.yaml", task_doc(bridge_task_id="BRIDGE-0902"))))
+        self._walk_to_waiting_copy("BRIDGE-0902")
+        self.cli("task", "create", str(self.write_yaml(
+            "t3.yaml", task_doc(bridge_task_id="BRIDGE-0903"))))
+        self.cli("task", "set-status", "BRIDGE-0903", "CLAIMED", "--actor", "x")
+
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertIn("BRIDGE-0901", out)
+        self.assertIn("BRIDGE-0902", out)
+        self.assertNotIn("BRIDGE-0903", out)
+        self.assertIn("Steuerchat -> Executor", out)
+        self.assertIn("Executor -> Steuerchat", out)
+        # Sortierung nach bridge_task_id
+        self.assertLess(out.index("BRIDGE-0901"), out.index("BRIDGE-0902"))
+
+    def test_board_failsoft_without_profile(self):
+        self.cli("task", "create", str(self.write_yaml(
+            "t.yaml", task_doc(bridge_task_id="BRIDGE-0901",
+                               project_id="voellig-unbekannt"))))
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertIn("voellig-unbekannt", out)
+
+    def test_board_uses_task_prefix_when_profile_present(self):
+        pdir = self.tmp / "projects" / "codex-control-bridge"
+        pdir.mkdir(parents=True)
+        (pdir / "project.yaml").write_text(yaml.safe_dump({
+            "schema_version": "1.0", "kind": "bridge_project_profile",
+            "project_id": "codex-control-bridge", "repository": "Codex-Control-Bridge",
+            "default_branch": "main", "task_prefix": "BRIDGE", "read_only": False,
+        }), encoding="utf-8")
+        self.cli("task", "create", str(self.write_yaml(
+            "t.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertTrue(out.splitlines()[1].startswith("1  BRIDGE"))
+
+    def test_board_depends_on_note_when_not_archived(self):
+        self.cli("task", "create", str(self.write_yaml(
+            "dep.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
+        self.cli("task", "create", str(self.write_yaml(
+            "t.yaml", task_doc(bridge_task_id="BRIDGE-0902",
+                               depends_on=["BRIDGE-0901"]))))
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "(depends_on BRIDGE-0901, Status: WAITING_FOR_HANDOFF_TO_EXECUTOR)", out)
+
+    def test_board_depends_on_outside_store_no_note(self):
+        self.cli("task", "create", str(self.write_yaml(
+            "t.yaml", task_doc(bridge_task_id="BRIDGE-0902",
+                               depends_on=["DORF-0001"]))))
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertNotIn("depends_on", out)
+
+    # -- commands (BRIDGE-016) ------------------------------
+
+    def _clean_env(self):
+        patcher = mock.patch.dict(os.environ, {}, clear=False)
+        patcher.start()
+        os.environ.pop("CCB_PROJECT_BASE", None)
+        self.addCleanup(patcher.stop)
+
+    def test_commands_sections_with_override(self):
+        self._clean_env()
+        os.environ["CCB_PROJECT_BASE"] = "E:\\_DEV"
+        code, out, _ = self.cli("commands")
+        self.assertEqual(code, 0)
+        self.assertIn("bridge board", out)
+        self.assertIn("bridge watch loop", out)
+        self.assertIn("handover-check.ps1", out)
+        self.assertIn("handover-check.sh", out)
+        self.assertIn("E:\\_DEV", out)
+
+    def test_commands_resolves_path_and_test_command(self):
+        self._clean_env()
+        os.environ["CCB_PROJECT_BASE"] = "E:\\base"
+        pdir = self.tmp / "projects" / "demo"
+        pdir.mkdir(parents=True)
+        (pdir / "project.yaml").write_text(yaml.safe_dump({
+            "schema_version": "1.0", "kind": "bridge_project_profile",
+            "project_id": "demo", "repository": "Demo-Repo",
+            "default_branch": "main", "task_prefix": "DEMO", "read_only": True,
+            "test_policy": {"command": "pytest -q", "required": True},
+        }), encoding="utf-8")
+        code, out, _ = self.cli("commands", "--project", "demo")
+        self.assertEqual(code, 0)
+        self.assertIn("Demo-Repo", out)
+        self.assertIn("pytest -q", out)
+
+    def test_commands_unknown_machine_fails_closed(self):
+        self._clean_env()
+        (self.tmp / "registry.yaml").write_text(
+            "schema_version: '1.0'\nkind: bridge_machine_registry\n"
+            "machines:\n  HAM11: 'E:\\_DEV'\n", encoding="utf-8")
+        code, _, err = self.cli("commands", "--machine", "NOPE11")
+        self.assertEqual(code, 1)
+        self.assertIn("NOPE11", err)
+        self.assertIn("CCB_PROJECT_BASE", err)
+        self.assertNotIn("Traceback", err)
 
     # -- Nutzungsfehler --------------------------------------
 

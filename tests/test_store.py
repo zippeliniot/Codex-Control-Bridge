@@ -173,6 +173,33 @@ class StoreTests(unittest.TestCase):
         for event in self.audit_events():
             validator.validate(event)
 
+    # -- last_transition_at (BRIDGE-016) --------------------------
+
+    def test_last_transition_at_finds_timestamp(self):
+        self.store.create_task(valid_task())
+        self.store.set_status("BRIDGE-0900", "READY", actor="x")
+        self.store.set_status("BRIDGE-0900", "WAITING_FOR_HANDOFF_TO_EXECUTOR", actor="x")
+        ts = self.store.last_transition_at(
+            "BRIDGE-0900", "WAITING_FOR_HANDOFF_TO_EXECUTOR")
+        match = [e for e in self.audit_events()
+                 if e.get("new_state") == "WAITING_FOR_HANDOFF_TO_EXECUTOR"]
+        self.assertEqual(ts, match[-1]["timestamp"])
+
+    def test_last_transition_at_returns_last_occurrence(self):
+        self.store.create_task(valid_task())
+        for state in ("READY", "CLAIMED", "RUNNING", "FAILED", "READY"):
+            self.store.set_status("BRIDGE-0900", state, actor="x")
+        ready = [e for e in self.audit_events() if e.get("new_state") == "READY"]
+        self.assertEqual(len(ready), 2)
+        self.assertEqual(
+            self.store.last_transition_at("BRIDGE-0900", "READY"),
+            ready[-1]["timestamp"])
+
+    def test_last_transition_at_none_without_match(self):
+        self.store.create_task(valid_task())
+        self.assertIsNone(self.store.last_transition_at("BRIDGE-0900", "ARCHIVED"))
+        self.assertIsNone(self.store.last_transition_at("BRIDGE-9999", "READY"))
+
     def test_path_escaping_rejected(self):
         with self.assertRaises(StoreError):
             self.store.load_task("../../evil")
