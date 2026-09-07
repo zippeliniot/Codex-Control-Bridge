@@ -45,6 +45,19 @@ class TransitionRules(unittest.TestCase):
         with self.assertRaises(TransitionError):
             assert_transition("CREATED", "RUNNING")
 
+    # -- BRIDGE-014: zwei Übergabe-Wartezustände -------------------
+
+    def test_handoff_and_copy_transitions_allowed(self):
+        self.assertTrue(is_allowed("READY", "WAITING_FOR_HANDOFF_TO_EXECUTOR"))
+        self.assertTrue(is_allowed("WAITING_FOR_HANDOFF_TO_EXECUTOR", "CLAIMED"))
+        self.assertTrue(is_allowed("COMPLETED", "WAITING_FOR_COPY_TO_CONTROL"))
+        self.assertTrue(is_allowed("WAITING_FOR_COPY_TO_CONTROL", "REVIEW_REQUIRED"))
+
+    def test_handoff_to_running_is_rejected(self):
+        self.assertFalse(is_allowed("WAITING_FOR_HANDOFF_TO_EXECUTOR", "RUNNING"))
+        with self.assertRaises(TransitionError):
+            assert_transition("WAITING_FOR_HANDOFF_TO_EXECUTOR", "RUNNING")
+
 
 class ModelIntegrity(unittest.TestCase):
     def test_every_state_has_transitions_entry(self):

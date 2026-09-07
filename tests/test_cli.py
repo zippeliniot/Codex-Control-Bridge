@@ -112,7 +112,8 @@ class CliTests(unittest.TestCase):
         code, out, _ = self.cli("task", "list")
         self.assertEqual(code, 0)
         self.assertIn("BRIDGE-900", out)
-        self.assertIn("CREATED", out)
+        # BRIDGE-014: task create schaltet automatisch bis zum Wartezustand durch.
+        self.assertIn("WAITING_FOR_HANDOFF_TO_EXECUTOR", out)
 
     def test_task_show_unknown(self):
         code, _, err = self.cli("task", "show", "BRIDGE-404")
@@ -123,14 +124,15 @@ class CliTests(unittest.TestCase):
 
     def test_set_status_allowed_then_disallowed(self):
         self.cli("task", "create", str(self.write_yaml("t.yaml", task_doc())))
-        code, _, _ = self.cli("task", "set-status", "BRIDGE-900", "READY", "--actor", "x")
+        # Auftrag steht nach create bei WAITING_FOR_HANDOFF_TO_EXECUTOR (BRIDGE-014).
+        code, _, _ = self.cli("task", "set-status", "BRIDGE-900", "CLAIMED", "--actor", "x")
         self.assertEqual(code, 0)
         _, out, _ = self.cli("task", "show", "BRIDGE-900")
-        self.assertIn("status: READY", out)
-        code, _, err = self.cli("task", "set-status", "BRIDGE-900", "RUNNING", "--actor", "x")
+        self.assertIn("status: CLAIMED", out)
+        code, _, err = self.cli("task", "set-status", "BRIDGE-900", "COMPLETED", "--actor", "x")
         self.assertEqual(code, 1)
         _, out, _ = self.cli("task", "show", "BRIDGE-900")
-        self.assertIn("status: READY", out)
+        self.assertIn("status: CLAIMED", out)
 
     # -- result / next-run --------------------------------------
 
@@ -170,7 +172,7 @@ class CliTests(unittest.TestCase):
             "# BRIDGE-900\n- [x] fertig\n- [ ] offen A\n- [ ] offen B\n", encoding="utf-8")
         code, out, _ = self.cli("resume", "BRIDGE-900")
         self.assertEqual(code, 0)
-        self.assertIn("CREATED", out)
+        self.assertIn("WAITING_FOR_HANDOFF_TO_EXECUTOR", out)
         self.assertIn("RUN-01", out)
         self.assertIn("offen A", out)
         self.assertIn("1 erledigt, 2 offen", out)
