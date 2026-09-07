@@ -202,17 +202,17 @@ Tests dieses Projekts laufen lassen:
 
 ## Akzeptanzkriterien
 
-- [ ] `registry.yaml`/`registry.schema.yaml` vorhanden (geliefert, hier nur
+- [x] `registry.yaml`/`registry.schema.yaml` vorhanden (geliefert, hier nur
       bestätigen)
-- [ ] `registry.py`: `resolve_base` fail-closed bei unbekannter Maschine,
+- [x] `registry.py`: `resolve_base` fail-closed bei unbekannter Maschine,
       `CCB_PROJECT_BASE`-Override funktioniert
-- [ ] `project_local_path` fail-soft (nie Absturz wegen einem Projekt)
-- [ ] `last_transition_at` liefert korrekten Zeitpunkt
-- [ ] `ccb board` zeigt beide Wartezustände projektübergreifend, sortiert,
+- [x] `project_local_path` fail-soft (nie Absturz wegen einem Projekt)
+- [x] `last_transition_at` liefert korrekten Zeitpunkt
+- [x] `ccb board` zeigt beide Wartezustände projektübergreifend, sortiert,
       mit `depends_on`-Hinweis, fail-soft bei fehlendem Profil
-- [ ] `ccb commands` zeigt Befehlsreferenz, fail-closed bei unbekannter
+- [x] `ccb commands` zeigt Befehlsreferenz, fail-closed bei unbekannter
       Maschine ohne Override
-- [ ] alle Tests grün; Pflicht-Footer
+- [x] alle Tests grün; Pflicht-Footer
 
 ## Nächster Auftrag
 
