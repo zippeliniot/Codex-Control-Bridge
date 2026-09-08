@@ -92,18 +92,18 @@ Pflicht-Footer: `Auftrag: BRIDGE-018 / Lauf: RUN-01 / Status: ...`
 
 ## Akzeptanzkriterien
 
-- [ ] `bridge task create` + `run start` für BRIDGE-0018 tatsächlich
+- [x] `bridge task create` + `run start` für BRIDGE-0018 tatsächlich
       ausgeführt
-- [ ] `--watch`/`--interval` implementiert, kein Bildschirm-Löschen, dafür
+- [x] `--watch`/`--interval` implementiert, kein Bildschirm-Löschen, dafür
       Zeitstempel pro Aktualisierung
-- [ ] `Ctrl+C` sauber abgefangen (Exit 0, kein Traceback)
-- [ ] Board-Logik wiederverwendet (keine Duplikation zwischen Einmal- und
+- [x] `Ctrl+C` sauber abgefangen (Exit 0, kein Traceback)
+- [x] Board-Logik wiederverwendet (keine Duplikation zwischen Einmal- und
       Watch-Modus)
-- [ ] Tests mit gemocktem `sleep`/`max_iterations`, keine echten Wartezeiten
+- [x] Tests mit gemocktem `sleep`/`max_iterations`, keine echten Wartezeiten
       in der Testsuite
-- [ ] `bridge run finish` tatsächlich ausgeführt, `bridge board`-Ausgabe in
+- [x] `bridge run finish` tatsächlich ausgeführt, `bridge board`-Ausgabe in
       der Antwort
-- [ ] alle Tests grün; Pflicht-Footer
+- [x] alle Tests grün; Pflicht-Footer
 
 ## Nächster Auftrag
 
