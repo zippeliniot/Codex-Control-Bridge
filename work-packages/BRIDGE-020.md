@@ -260,37 +260,40 @@ bridge run finish BRIDGE-0020 --status COMPLETED --actor claude-code \
 ## Akzeptanzkriterien
 
 **RUN-01 (Stufe 1):**
-- `bridge webui serve --actor <a> [--port N]` startet einen Server, der
+- [x] `bridge webui serve --actor <a> [--port N]` startet einen Server, der
   ausschließlich an `127.0.0.1` bindet (kein `--host`-Flag vorhanden).
-- `GET /` liefert eine funktionierende HTML-Seite mit Auto-Refresh gegen
+- [x] `GET /` liefert eine funktionierende HTML-Seite mit Auto-Refresh gegen
   `GET /api/board` (Standard-Intervall 15 s), ohne externe Assets.
-- `GET /api/board` liefert die Board-Daten aus derselben Quelle wie
+- [x] `GET /api/board` liefert die Board-Daten aus derselben Quelle wie
   `bridge board` (keine zweite, potenziell abweichende Implementierung)
   sowie zusätzlich die in der Architekturentscheidung beschriebene
   Zusatzliste `other`.
-- `bridge board` (CLI) verhält sich exakt wie vor diesem Paket — keine
+- [x] `bridge board` (CLI) verhält sich exakt wie vor diesem Paket — keine
   Änderung an `_BOARD_STATES`, `_board_text()`-Format oder Spaltenbreiten.
-- Kein Schreibzugriff über die Web-UI in RUN-01 möglich.
-- Alle Tests grün (bestehende 173 + neue), frischer Klon verifiziert.
+- [x] Kein Schreibzugriff über die Web-UI in RUN-01 möglich.
+- [x] Alle Tests grün (bestehende 173 + neue), frischer Klon verifiziert.
+- [x] `docs/security/SECURITY-MODEL.md` enthält den Abschnitt „Web-UI
+  (BRIDGE-020)" mit der `127.0.0.1`-only-Begründung (in RUN-01 bereits
+  ergänzt, gilt für beide Stufen).
 
 **RUN-02 (Stufe 2):**
-- `POST /api/task/<id>/copied`, `.../archive`, `POST /api/run/<id>/finish`
+- [ ] `POST /api/task/<id>/copied`, `.../archive`, `POST /api/run/<id>/finish`
   nutzen dieselbe Store-/Runner-Logik wie die entsprechenden
   CLI-Kommandos — kein Parallel-Code, keine abweichenden Zustandsregeln.
-- Jede der drei Aktionen scheitert serverseitig (HTTP 400) ohne
+- [ ] Jede der drei Aktionen scheitert serverseitig (HTTP 400) ohne
   `confirm: true` und ohne nicht-leeren `actor`; `run finish` zusätzlich
   ohne nicht-leere `summary`.
-- `POST`-Requests mit falschem/fehlendem `Origin`/`Referer` werden mit
+- [ ] `POST`-Requests mit falschem/fehlendem `Origin`/`Referer` werden mit
   HTTP 403 abgelehnt.
-- Frontend zeigt Buttons nur für Aufträge/Status, bei denen der
+- [ ] Frontend zeigt Buttons nur für Aufträge/Status, bei denen der
   jeweilige Übergang laut `state-model.yaml` zulässig ist, mit
   Bestätigungsdialog vor jedem Klick.
-- Jede über die Web-UI ausgelöste Aktion erscheint korrekt in
+- [ ] Jede über die Web-UI ausgelöste Aktion erscheint korrekt in
   `audit/audit.jsonl` (gleicher Mechanismus wie CLI-Aktionen, kein
   Sonderweg).
-- Kein bestehendes CLI-Verhalten (`task copied`/`archive`/`run finish`
+- [ ] Kein bestehendes CLI-Verhalten (`task copied`/`archive`/`run finish`
   über das Terminal) ändert sich.
-- Alle Tests grün (bestehende Basis aus RUN-01 + neue), frischer Klon
+- [ ] Alle Tests grün (bestehende Basis aus RUN-01 + neue), frischer Klon
   verifiziert.
-- `docs/security/SECURITY-MODEL.md` enthält den neuen Abschnitt
+- [x] `docs/security/SECURITY-MODEL.md` enthält den neuen Abschnitt
   "Web-UI (BRIDGE-020)" mit der `127.0.0.1`-only-Begründung.

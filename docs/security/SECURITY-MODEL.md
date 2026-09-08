@@ -73,6 +73,28 @@ expected_head · allowed_changed_files · expected_diff_hash
 
 Stimmt die erwartete Ausgangslage nicht, bricht der Auftrag ab (fail-closed).
 
+## 5a. Web-UI (BRIDGE-020)
+
+Die lokale Web-UI (`bridge webui serve`) ist eine dünne Anzeige- und
+Bedienschicht über den bereits abgesicherten Store-/Runner-Funktionen.
+
+- **Bindung ausschließlich an `127.0.0.1`.** Kein `0.0.0.0`, keine
+  `--host`-Option — die Adresse ist im Code hart verdrahtet
+  (`webui.HOST`). Das ist die technische Umsetzung von „keine externe
+  Erreichbarkeit", nicht nur eine Empfehlung: ein Aufweichen der Bindung
+  würde die ungeschützte Bridge-Steuerung für das gesamte Netz öffnen.
+- **Kein Auth-Layer.** Bewusst, weil der Dienst nur lokal auf einer
+  Ein-Nutzer-Maschine erreichbar ist. Diese Lücke ist hier ausdrücklich
+  dokumentiert, damit niemand später `--host 0.0.0.0` ergänzt, ohne das
+  fehlende Login zu bedenken.
+- **RUN-01 ist rein lesend** (`GET /`, `GET /api/board`); jede andere
+  Methode/Route antwortet 404/405. Ein Store-/Profilfehler wird als
+  JSON-Fehlerobjekt mit HTTP 500 zurückgegeben und beendet den Server
+  nicht.
+- Schreibende Aktions-Endpunkte folgen erst in RUN-02 — mit
+  serverseitiger Bestätigungspflicht und Same-Origin-Prüfung, nicht nur
+  einem Browser-Dialog.
+
 ## 6. Grenzen der ersten Version (Nicht-Ziele)
 
 Zunächst ausdrücklich **nicht** vorgesehen:
