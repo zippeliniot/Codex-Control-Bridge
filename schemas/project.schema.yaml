@@ -103,6 +103,34 @@ properties:
     type: ["string", "null"]
     enum: [anthropic, openai, human, null]
     default: null
+  review_roles:
+    description: >-
+      Fachliche Führungs-/Pruefrolle (Kontrollzweck), getrennt von
+      executor/controller (die regeln nur die technische Ausfuehrung/
+      Steuerung, nicht die fachliche Verantwortung). Projekt-Default;
+      kann pro Auftrag ueberschrieben werden (siehe task.schema.yaml).
+    type: ["object", "null"]
+    additionalProperties: false
+    default: null
+    properties:
+      lead:
+        description: "Fachlich fuehrende KI fuer dieses Projekt."
+        type: ["string", "null"]
+        enum: [anthropic, openai, human, null]
+      support:
+        description: "Unterstuetzende/pruefende KI (Cross-Check, keine Alleinverantwortung)."
+        type: ["string", "null"]
+        enum: [anthropic, openai, human, null]
+  github_repo:
+    description: >-
+      Vollqualifizierter GitHub-Slug ("Besitzer/Repo") fuer Steuerprozesse
+      ohne lokalen Checkout (z. B. ChatGPT ueber GitHub-Connector/-API).
+      Getrennt vom Feld 'repository', das nur der lokale Verzeichnisname
+      ist (siehe registry.py: <basis>/<repository>). Null = kein
+      dokumentierter Remote-Zugriff ohne lokalen Checkout vorgesehen.
+    type: ["string", "null"]
+    pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    default: null
   migration_policy:
     type: ["object", "null"]
     additionalProperties: false

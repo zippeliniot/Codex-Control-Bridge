@@ -9,6 +9,7 @@ task_prefix: BRIDGE
 read_only: false
 executor: claude-code
 controller: human
+github_repo: zippeliniot/Codex-Control-Bridge
 allowed_machines: [HAM11, DES11]
 git_policy:
   allow_push: true
