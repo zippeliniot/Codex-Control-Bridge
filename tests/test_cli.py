@@ -136,6 +136,42 @@ class CliTests(unittest.TestCase):
         _, out, _ = self.cli("task", "show", "BRIDGE-0900")
         self.assertIn("status: CLAIMED", out)
 
+    # -- task archive (BRIDGE-017) --------------------------------
+
+    def _walk(self, task_id, *states):
+        for st in states:
+            self.cli("task", "set-status", task_id, st, "--actor", "x")
+
+    def test_task_archive_from_allowed_state(self):
+        self.cli("task", "create", str(self.write_yaml("t.yaml", task_doc())))
+        # WAITING_FOR_HANDOFF_TO_EXECUTOR -> ... -> REVIEW_REQUIRED (ARCHIVED erlaubt)
+        self._walk("BRIDGE-0900", "CLAIMED", "RUNNING", "REVIEW_REQUIRED")
+        code, out, _ = self.cli("task", "archive", "BRIDGE-0900", "--actor", "x")
+        self.assertEqual(code, 0)
+        self.assertIn("REVIEW_REQUIRED -> ARCHIVED", out)
+        self.assertIn("TASK_ARCHIVED", out)
+        _, show, _ = self.cli("task", "show", "BRIDGE-0900")
+        self.assertIn("status: ARCHIVED", show)
+        # Standardbegruendung landet in der Auditspur.
+        _, audit, _ = self.cli("audit", "show", "BRIDGE-0900")
+        self.assertIn("Auftrag abgeschlossen", audit)
+
+    def test_task_archive_from_disallowed_state_fails_closed(self):
+        self.cli("task", "create", str(self.write_yaml("t.yaml", task_doc())))
+        # RUNNING -> ARCHIVED ist in der Zustandstabelle nicht gelistet.
+        self._walk("BRIDGE-0900", "CLAIMED", "RUNNING")
+        code, _, err = self.cli("task", "archive", "BRIDGE-0900", "--actor", "x")
+        self.assertEqual(code, 1)
+        self.assertTrue(err.strip())
+        self.assertNotIn("Traceback", err)
+        _, show, _ = self.cli("task", "show", "BRIDGE-0900")
+        self.assertIn("status: RUNNING", show)
+
+    def test_task_archive_requires_actor(self):
+        code = main(["--root", str(self.tmp), "--schema-dir", str(SCHEMA_DIR),
+                     "task", "archive", "BRIDGE-0900"])
+        self.assertEqual(code, 2)
+
     # -- result / next-run --------------------------------------
 
     def test_result_write_and_next_run(self):

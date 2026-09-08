@@ -51,6 +51,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "copied", help="Ergebnis wurde in den Steuerchat kopiert (-> REVIEW_REQUIRED)")
     tcopied.add_argument("task_id")
     tcopied.add_argument("--actor", required=True)
+    tarchive = tsub.add_parser(
+        "archive", help="Auftrag abschliessen (-> ARCHIVED)")
+    tarchive.add_argument("task_id")
+    tarchive.add_argument("--actor", required=True)
+    tarchive.add_argument("--reason", default=None)
     tset = tsub.add_parser("set-status", help="Zustandswechsel")
     tset.add_argument("task_id")
     tset.add_argument("new_state")
@@ -206,6 +211,18 @@ def _cmd_task(args, store) -> int:
                 f"zulässig (aktueller Zustand: {current}).")
         event = store.set_status(args.task_id, "REVIEW_REQUIRED", args.actor, None,
                                  reason="Ergebnis in Steuerchat kopiert")
+        print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']} "
+              f"({event['event_type']})")
+        return 0
+    if args.task_cmd == "archive":
+        # Bewusst OHNE Ausgangszustands-Check (anders als 'copied'): 'archive'
+        # hat kein enges semantisches Versprechen, sondern heisst schlicht
+        # "dieser Auftrag ist erledigt". Aus welchen Zustaenden ARCHIVED
+        # erreichbar ist, regelt die Zustandstabelle (schemas/state-model.yaml)
+        # bereits fail-closed - z. B. nicht direkt aus RUNNING.
+        reason = args.reason or "Auftrag abgeschlossen"
+        event = store.set_status(args.task_id, "ARCHIVED", args.actor, None,
+                                 reason=reason)
         print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']} "
               f"({event['event_type']})")
         return 0
