@@ -1,0 +1,23 @@
+schema_version: "1.0"
+kind: bridge_task
+bridge_task_id: BRIDGE-0017
+project_id: codex-control-bridge
+title: Komfortbefehl 'task archive'
+description: >-
+  Analog zu 'task copied' (BRIDGE-014): kurzer Komfortbefehl, der einen
+  Auftrag explizit nach ARCHIVED setzt, statt dass der Mensch den
+  generischen 'task set-status'-Befehl mit Zustandsnamen tippen muss.
+  Erstes Paket, das ueber die Bridge selbst (statt nur als
+  work-packages/*.md-Dokument) gefuehrt wird.
+task_class: FEATURE
+repository: Codex-Control-Bridge
+branch: main
+permissions: [WORKTREE_WRITE, TEST_EXECUTION]
+depends_on: [BRIDGE-0016]
+acceptance_criteria:
+  - "bridge task archive <id> --actor <a> setzt den Auftrag nach ARCHIVED"
+  - "fail-closed ueber die bestehende Zustandstabelle (kein Sonderfall noetig)"
+  - "alle Tests bleiben gruen"
+status: CREATED
+created_at: "2026-09-08T00:00:00Z"
+created_by: browser-claude
