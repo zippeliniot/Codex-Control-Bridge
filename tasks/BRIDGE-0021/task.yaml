@@ -19,6 +19,6 @@ acceptance_criteria:
 - kein bestehender Abschnitt in CLAUDE.md inhaltlich veraendert
 - alle Tests bleiben gruen
 - run finish fuer diesen Auftrag selbst wird mit --summary aufgerufen
-status: RUNNING
+status: WAITING_FOR_COPY_TO_CONTROL
 created_at: '2026-09-08T00:00:00Z'
 created_by: browser-claude
