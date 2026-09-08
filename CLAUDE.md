@@ -5,6 +5,9 @@ projektunabhängige Vermittlungsschicht für Aufträge/Ergebnisse zwischen einem
 Steuerprozess und einer Ausführungsinstanz. Maßgeblich ist
 `docs/architecture/ARCHITECTURE.md`. Fachliche Grundlage: `docs/PROJEKTKONZEPT.md`.
 
+Für einen ChatGPT-gesteuerten Steuerprozess (statt Claude Code) siehe
+`CONTROL.md`.
+
 ## Ausführungsmodell
 
 - Claude Code läuft als **native Windows-App** und arbeitet ausschließlich in
