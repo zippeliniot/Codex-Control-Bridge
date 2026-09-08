@@ -1,0 +1,22 @@
+schema_version: "1.0"
+kind: bridge_task
+bridge_task_id: BRIDGE-0018
+project_id: codex-control-bridge
+title: 'bridge board --watch'
+description: >-
+  Dauerhaft laufendes Ueberwachungsfenster fuer das Copy-Paste-Board:
+  bridge board wiederholt in einem festen Intervall neu lesen und anzeigen,
+  bis Ctrl+C, nach dem gleichen Muster wie watcher.loop() (BRIDGE-008).
+task_class: FEATURE
+repository: Codex-Control-Bridge
+branch: main
+permissions: [WORKTREE_WRITE, TEST_EXECUTION]
+depends_on: [BRIDGE-0016]
+acceptance_criteria:
+  - "bridge board --watch --interval N liest und zeigt board wiederholt, bis Ctrl+C"
+  - "jede Aktualisierung mit Zeitstempel erkennbar, kein fragiles Bildschirmloeschen"
+  - "read-only, keine Schreibzugriffe, kein --apply noetig (nur Anzeige)"
+  - "alle Tests bleiben gruen"
+status: CREATED
+created_at: "2026-09-08T00:00:00Z"
+created_by: browser-claude
