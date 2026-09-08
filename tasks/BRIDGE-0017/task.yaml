@@ -19,6 +19,6 @@ acceptance_criteria:
 - bridge task archive <id> --actor <a> setzt den Auftrag nach ARCHIVED
 - fail-closed ueber die bestehende Zustandstabelle (kein Sonderfall noetig)
 - alle Tests bleiben gruen
-status: RUNNING
+status: WAITING_FOR_COPY_TO_CONTROL
 created_at: '2026-09-08T00:00:00Z'
 created_by: browser-claude

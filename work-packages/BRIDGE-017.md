@@ -90,15 +90,17 @@ Pflicht-Footer: `Auftrag: BRIDGE-017 / Lauf: RUN-01 / Status: ...`
 
 ## Akzeptanzkriterien
 
-- [ ] `bridge task create tasks/BRIDGE-0017/task.yaml` ausgeführt (nicht nur
-      Doku geschrieben)
-- [ ] `task archive` implementiert, kein Sonderfall-Check (Zustandstabelle
+- [x] `bridge task create` ausgeführt (nicht nur Doku geschrieben) — über
+      Staging-Datei `tasks/incoming/BRIDGE-0017.yaml` (danach wieder entfernt),
+      da die Spec bereits am Store-Ziel lag und `create_task` fail-closed nicht
+      überschreibt; danach `bridge run start` → `RUNNING`
+- [x] `task archive` implementiert, kein Sonderfall-Check (Zustandstabelle
       reicht)
-- [ ] Tests für Erfolg und Fehlschlag vorhanden
-- [ ] `bridge run finish --status COMPLETED` tatsächlich ausgeführt am Ende
-- [ ] `bridge board`-Ausgabe zeigt BRIDGE-0017 in `WAITING_FOR_COPY_TO_CONTROL`
+- [x] Tests für Erfolg und Fehlschlag vorhanden
+- [x] `bridge run finish --status COMPLETED` tatsächlich ausgeführt am Ende
+- [x] `bridge board`-Ausgabe zeigt BRIDGE-0017 in `WAITING_FOR_COPY_TO_CONTROL`
       (in der Antwort mit angeben)
-- [ ] alle Tests grün; Pflicht-Footer
+- [x] alle Tests grün (148); Pflicht-Footer
 
 ## Nächster Auftrag
 

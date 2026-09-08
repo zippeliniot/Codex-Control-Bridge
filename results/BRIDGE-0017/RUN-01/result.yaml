@@ -1,0 +1,17 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0017
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: 9c34fb1c25d07d11fc595b0542dd97b751b0502f
+executor: claude-code
+started_at: '2026-09-08T14:04:26Z'
+ended_at: '2026-09-08T14:06:07Z'
+created_by: claude-code@unknown
+changed_files:
+- src/bridge/cli.py
+- tests/test_cli.py
+summary: task archive Komfortbefehl implementiert, Tests gruen (148).
