@@ -141,6 +141,78 @@ class ProfilesTests(unittest.TestCase):
         with self.assertRaises(profiles.ProfileError):
             profiles.validate_profile(p, SCHEMA_DIR)
 
+    # -- review_roles / github_repo Schema (BRIDGE-019) ----
+
+    def test_profile_review_roles_and_github_repo_valid(self):
+        doc = valid_profile(
+            review_roles={"lead": "anthropic", "support": "openai"},
+            github_repo="zippeliniot/Codex-Control-Bridge")
+        self.assertEqual(profiles.validate_profile(doc, SCHEMA_DIR)["github_repo"],
+                         "zippeliniot/Codex-Control-Bridge")
+
+    def test_profile_without_new_fields_still_valid(self):
+        # additiv: bestehende Profile ohne die neuen Felder bleiben gueltig
+        profiles.validate_profile(valid_profile(), SCHEMA_DIR)
+
+    def test_profile_invalid_review_role_enum_rejected(self):
+        bad = valid_profile(review_roles={"lead": "gemini"})
+        with self.assertRaises(profiles.ProfileError):
+            profiles.validate_profile(bad, SCHEMA_DIR)
+
+    def test_profile_invalid_github_repo_pattern_rejected(self):
+        bad = valid_profile(github_repo="nur-ein-name-ohne-slash")
+        with self.assertRaises(profiles.ProfileError):
+            profiles.validate_profile(bad, SCHEMA_DIR)
+
+    # -- Resolution: Task-Override vor Projekt-Default (BRIDGE-019) --
+
+    def test_resolve_executor_task_override_wins(self):
+        self.assertEqual(
+            profiles.resolve_executor({"executor": "claude-code"},
+                                      {"executor": "codex"}), "codex")
+
+    def test_resolve_executor_falls_back_to_project(self):
+        self.assertEqual(
+            profiles.resolve_executor({"executor": "claude-code"},
+                                      {"executor": None}), "claude-code")
+
+    def test_resolve_executor_both_null_is_none(self):
+        self.assertIsNone(profiles.resolve_executor({}, {}))
+
+    def test_resolve_controller_task_override_wins(self):
+        self.assertEqual(
+            profiles.resolve_controller({"controller": "human"},
+                                        {"controller": "openai"}), "openai")
+
+    def test_resolve_controller_falls_back_to_project(self):
+        self.assertEqual(
+            profiles.resolve_controller({"controller": "human"}, {}), "human")
+
+    def test_resolve_review_roles_task_override_is_whole(self):
+        profile = {"review_roles": {"lead": "anthropic", "support": "human"}}
+        task = {"review_roles": {"lead": "openai", "support": None}}
+        # Task-Wert gilt komplett, kein Mischen mit Projekt-support
+        self.assertEqual(profiles.resolve_review_roles(profile, task),
+                         {"lead": "openai", "support": None})
+
+    def test_resolve_review_roles_falls_back_to_project(self):
+        profile = {"review_roles": {"lead": "anthropic", "support": "openai"}}
+        self.assertEqual(profiles.resolve_review_roles(profile, {"review_roles": None}),
+                         {"lead": "anthropic", "support": "openai"})
+
+    def test_resolve_review_roles_task_sets_project_has_none(self):
+        task = {"review_roles": {"lead": "openai", "support": "anthropic"}}
+        self.assertEqual(profiles.resolve_review_roles({}, task),
+                         {"lead": "openai", "support": "anthropic"})
+
+    def test_resolve_review_roles_project_sets_task_has_none(self):
+        profile = {"review_roles": {"lead": "anthropic", "support": None}}
+        self.assertEqual(profiles.resolve_review_roles(profile, {}),
+                         {"lead": "anthropic", "support": None})
+
+    def test_resolve_review_roles_both_none(self):
+        self.assertIsNone(profiles.resolve_review_roles({}, {}))
+
 
 class CliProjectTests(unittest.TestCase):
     def setUp(self):

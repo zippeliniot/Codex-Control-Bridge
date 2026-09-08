@@ -129,3 +129,32 @@ def get_controller(profile) -> str | None:
 def requires_automation(profile) -> bool:
     """True, wenn executor gesetzt ist UND nicht read-only."""
     return profile.get("executor") is not None and profile.get("read_only") is not True
+
+
+# --------------------------------------------------------------------------- #
+# Resolution: Task-Override vor Projekt-Default vor None (BRIDGE-019)
+# --------------------------------------------------------------------------- #
+
+def _resolve(profile, task, key):
+    """Task-Wert gewinnt, wenn nicht ``None``; sonst Projekt-Default; sonst ``None``."""
+    value = (task or {}).get(key)
+    if value is not None:
+        return value
+    return (profile or {}).get(key)
+
+
+def resolve_executor(profile, task) -> str | None:
+    """Ausfuehrungsinstanz: Task-Override (task.executor) vor Projekt (profile.executor)."""
+    return _resolve(profile, task, "executor")
+
+
+def resolve_controller(profile, task) -> str | None:
+    """Steuerinstanz: Task-Override (task.controller) vor Projekt (profile.controller)."""
+    return _resolve(profile, task, "controller")
+
+
+def resolve_review_roles(profile, task) -> dict | None:
+    """Fuehrungs-/Pruefrolle als Ganzes: Task-``review_roles`` (falls nicht ``None``)
+    gewinnt komplett, sonst der Projekt-Default, sonst ``None``. Kein Mischen von
+    Task-``lead`` mit Projekt-``support`` (Klarheit vor Flexibilitaet)."""
+    return _resolve(profile, task, "review_roles")
