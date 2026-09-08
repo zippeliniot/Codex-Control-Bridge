@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -92,6 +93,12 @@ def _build_parser() -> argparse.ArgumentParser:
     sboard = sub.add_parser(
         "board", help="Copy-Paste-Board: welcher Auftrag wartet auf Kopie (rein lesend)")
     sboard.add_argument("--machine", help="Maschinenname ueberschreiben (Standard: COMPUTERNAME)")
+    sboard.add_argument("--watch", action="store_true",
+                        help="dauerhaft laufen und sich selbst aktualisieren (bis Ctrl+C)")
+    sboard.add_argument("--interval", type=float, default=15.0,
+                        help="Sekunden zwischen den Aktualisierungen (nur mit --watch, Standard: 15.0)")
+    sboard.add_argument("--max-iterations", type=int, default=None,
+                        help=argparse.SUPPRESS)
 
     scmd = sub.add_parser(
         "commands", help="Befehlsreferenz mit aufgeloestem lokalem Pfad (rein lesend)")
@@ -361,8 +368,13 @@ def _board_depends_note(store, task) -> str:
     return "  ".join(notes)
 
 
-def _cmd_board(args, store) -> int:
-    now = datetime.now(timezone.utc)
+def _board_rows(store, *, now=None):
+    """Ermittelt die Board-Zeilen (reine Daten, keine Ausgabe).
+
+    Rueckgabe: nach bridge_task_id sortierte Liste von Tupeln
+    ``(task_id, projekt, richtung, wartezeit, hinweis)``.
+    """
+    now = now or datetime.now(timezone.utc)
     rows = []
     for task in _list_task_docs(store):
         status = task.get("status")
@@ -385,18 +397,53 @@ def _cmd_board(args, store) -> int:
             wait,
             _board_depends_note(store, task),
         ))
-
-    if not rows:
-        print("(keine Auftraege warten auf Kopie)")
-        return 0
-
     rows.sort(key=lambda r: r[0])
-    print(f"{'#':<3}{'Projekt':<13}{'Auftrag':<13}{'Richtung':<24}Wartet seit")
+    return rows
+
+
+def _board_text(rows) -> str:
+    """Baut aus den Board-Zeilen den Tabellentext (Einmal- und Watch-Modus)."""
+    if not rows:
+        return "(keine Auftraege warten auf Kopie)"
+    lines = [f"{'#':<3}{'Projekt':<13}{'Auftrag':<13}{'Richtung':<24}Wartet seit"]
     for i, (task_id, projekt, richtung, wait, note) in enumerate(rows, start=1):
         line = f"{i:<3}{projekt:<13}{task_id:<13}{richtung:<24}{wait}"
         if note:
             line = f"{line}  {note}"
-        print(line)
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _board_loop(store, *, interval, max_iterations=None, sleep=time.sleep, now=None):
+    """Zeigt das Board wiederholt an - Muster wie ``watcher.loop()``.
+
+    ``max_iterations`` und ``sleep`` sind nur fuer Tests gedacht (kein echtes
+    Warten); ohne ``max_iterations`` laeuft die Schleife bis ``KeyboardInterrupt``.
+    Kein Bildschirm-Loeschen: vor jeder Aktualisierung eine Trennzeile mit
+    Zeitstempel.
+    """
+    count = 0
+    while max_iterations is None or count < max_iterations:
+        stamp = (now() if callable(now) else now) or datetime.now(timezone.utc)
+        print(f"=== bridge board (Aktualisiert: "
+              f"{stamp.strftime('%Y-%m-%dT%H:%M:%SZ')}) ===")
+        print(_board_text(_board_rows(store, now=stamp)))
+        count += 1
+        if max_iterations is not None and count >= max_iterations:
+            break
+        sleep(interval)
+
+
+def _cmd_board(args, store) -> int:
+    if not getattr(args, "watch", False):
+        print(_board_text(_board_rows(store)))
+        return 0
+    try:
+        _board_loop(store, interval=args.interval,
+                    max_iterations=getattr(args, "max_iterations", None),
+                    sleep=time.sleep)
+    except KeyboardInterrupt:
+        print()  # sauberer Zeilenumbruch, kein Traceback
     return 0
 
 

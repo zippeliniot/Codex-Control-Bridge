@@ -16,6 +16,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 import yaml  # noqa: E402
 
 from bridge.cli import main  # noqa: E402
+from bridge import cli as cli_mod  # noqa: E402
 
 SCHEMA_DIR = REPO_ROOT / "schemas"
 TS = "2026-01-01T00:00:00Z"
@@ -292,6 +293,39 @@ class CliTests(unittest.TestCase):
         code, out, _ = self.cli("board")
         self.assertEqual(code, 0)
         self.assertNotIn("depends_on", out)
+
+    # -- board --watch (BRIDGE-018) -------------------------
+
+    def test_board_watch_runs_fixed_iterations_without_real_sleep(self):
+        self.cli("task", "create", str(self.write_yaml(
+            "t1.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
+        slept = []
+        with mock.patch.object(cli_mod.time, "sleep",
+                               side_effect=lambda s: slept.append(s)):
+            code, out, _ = self.cli("board", "--watch", "--interval", "999",
+                                    "--max-iterations", "3")
+        self.assertEqual(code, 0)
+        self.assertEqual(slept, [999, 999])  # nur zwischen den drei Durchlaeufen
+        self.assertEqual(out.count("=== bridge board (Aktualisiert:"), 3)
+        self.assertIn("BRIDGE-0901", out)
+
+    def test_board_watch_keyboardinterrupt_exits_cleanly(self):
+        self.cli("task", "create", str(self.write_yaml(
+            "t1.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
+        with mock.patch.object(cli_mod.time, "sleep",
+                               side_effect=KeyboardInterrupt):
+            code, out, err = self.cli("board", "--watch", "--interval", "999")
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
+        self.assertIn("=== bridge board (Aktualisiert:", out)
+
+    def test_board_without_watch_has_no_timestamp_header(self):
+        self.cli("task", "create", str(self.write_yaml(
+            "t1.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertNotIn("===", out)
+        self.assertIn("BRIDGE-0901", out)
 
     # -- commands (BRIDGE-016) ------------------------------
 
