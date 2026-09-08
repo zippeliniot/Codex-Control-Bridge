@@ -1,0 +1,44 @@
+schema_version: '1.0'
+kind: bridge_task
+bridge_task_id: BRIDGE-0020
+project_id: codex-control-bridge
+title: 'Web-UI Stufe 1 (Lese-Board) + Stufe 2 (Aktions-Buttons)'
+description: >-
+  Lokaler, dünner Webserver (reine stdlib, http.server) fuer die Bridge.
+  RUN-01: lesende Web-UI unter GET / und GET /api/board, wiederverwendet
+  dieselbe Board-Datenquelle wie bridge board (_board_rows()), Auto-Refresh
+  alle 15s, Bindung ausschliesslich 127.0.0.1, keine externe Erreichbarkeit,
+  kein Schreibzugriff. RUN-02: Aktions-Endpunkte fuer task copied/task
+  archive/run finish, nutzen dieselbe Store-/Runner-Logik wie die
+  entsprechenden CLI-Kommandos, serverseitige Bestaetigungspflicht
+  (confirm-Flag, nicht-leerer actor, bei run finish nicht-leere summary),
+  Same-Origin-Pruefung fuer POST-Requests, Frontend-Bestaetigungsdialog vor
+  jeder Aktion. Ein Auftrag mit zwei Laeufen ueber das bestehende
+  Checkpoint-&-Resume-Muster (run start / run resume), keine zwei
+  BRIDGE-IDs. Kein neues Schema, kein neuer Zustand, keine Aenderung am
+  bestehenden bridge board-CLI-Verhalten.
+task_class: FEATURE
+repository: Codex-Control-Bridge
+branch: main
+permissions:
+- WORKTREE_WRITE
+- TEST_EXECUTION
+depends_on: []
+acceptance_criteria:
+- 'RUN-01: bridge webui serve --actor <a> [--port N] bindet ausschliesslich an 127.0.0.1, kein --host-Flag vorhanden'
+- 'RUN-01: GET / liefert HTML mit Auto-Refresh gegen GET /api/board (Standard 15s), keine externen Assets'
+- 'RUN-01: GET /api/board nutzt dieselbe Datenquelle wie bridge board (_board_rows()) plus Zusatzliste other fuer Auftraege ausserhalb der Board-Zustaende'
+- 'RUN-01: bridge board (CLI) unveraendert - keine Aenderung an _BOARD_STATES, _board_text()-Format, Spaltenbreiten'
+- 'RUN-01: kein Schreibzugriff ueber die Web-UI moeglich'
+- 'RUN-01: alle Tests gruen (bestehende 173 + neue), frischer Klon verifiziert'
+- 'RUN-02: POST /api/task/<id>/copied, .../archive, POST /api/run/<id>/finish nutzen dieselbe Store-/Runner-Logik wie die CLI-Kommandos, kein Parallel-Code'
+- 'RUN-02: jede Aktion scheitert serverseitig (HTTP 400) ohne confirm true und ohne nicht-leeren actor; run finish zusaetzlich ohne nicht-leere summary'
+- 'RUN-02: POST-Requests mit falschem/fehlendem Origin/Referer werden mit HTTP 403 abgelehnt'
+- 'RUN-02: Frontend zeigt Buttons nur fuer laut state-model.yaml zulaessige Uebergaenge, mit Bestaetigungsdialog vor jedem Klick'
+- 'RUN-02: jede ueber die Web-UI ausgeloeste Aktion erscheint korrekt in audit/audit.jsonl, gleicher Mechanismus wie CLI'
+- 'RUN-02: kein bestehendes CLI-Verhalten (task copied/archive/run finish im Terminal) aendert sich'
+- 'RUN-02: alle Tests gruen (Basis aus RUN-01 + neue), frischer Klon verifiziert'
+- 'RUN-02: docs/security/SECURITY-MODEL.md enthaelt neuen Abschnitt Web-UI (BRIDGE-020) mit der 127.0.0.1-only-Begruendung'
+status: CREATED
+created_at: '2026-09-08T00:00:00Z'
+created_by: browser-claude
