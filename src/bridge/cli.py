@@ -106,6 +106,16 @@ def _build_parser() -> argparse.ArgumentParser:
     scmd.add_argument("--project", default="codex-control-bridge",
                       help="Projekt-ID fuer den aufgeloesten Pfad (Standard: codex-control-bridge)")
 
+    webui = sub.add_parser(
+        "webui", help="lokale Lese-Web-UI ueber dem Board (nur 127.0.0.1, rein lesend)")
+    websub = webui.add_subparsers(dest="webui_cmd", required=True)
+    wserve = websub.add_parser(
+        "serve", help="Web-UI starten (bindet hart an 127.0.0.1, kein --host)")
+    wserve.add_argument("--actor", required=True,
+                        help="Akteur fuer spaetere Aktions-Buttons (RUN-02); jetzt nur hinterlegt")
+    wserve.add_argument("--port", type=int, default=8420,
+                        help="Port (Standard: 8420; belegt -> klare Fehlermeldung, kein Ausweichen)")
+
     watch = sub.add_parser(
         "watch", help="Watcher: Ergebnisse/Heartbeats erkennen und weiterführen")
     wsub = watch.add_subparsers(dest="watch_cmd", required=True)
@@ -662,6 +672,28 @@ def _cmd_project(args, store) -> int:
     return 2  # vom Parser ausgeschlossen
 
 
+def _cmd_webui(args, store) -> int:
+    # Lazy-Import: webui.py importiert Board-Helfer aus cli.py - der Import hier
+    # unten vermeidet einen Import-Zyklus beim Laden von cli.py.
+    from bridge import webui
+
+    try:
+        httpd = webui.serve(store, port=args.port, actor=args.actor)
+    except OSError as exc:
+        print(f"Fehler: Port {args.port} nicht verfuegbar ({exc}). "
+              f"Anderen Port mit --port waehlen.", file=sys.stderr)
+        return 1
+    host, port = httpd.server_address[0], httpd.server_address[1]
+    print(f"Web-UI: http://{host}:{port}/ (nur lokal erreichbar, Strg+C zum Beenden)")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print()  # sauberer Abschluss, kein Traceback (wie _board_loop)
+    finally:
+        httpd.server_close()
+    return 0
+
+
 _DISPATCH = {
     "validate": _cmd_validate,
     "task": _cmd_task,
@@ -671,6 +703,7 @@ _DISPATCH = {
     "resume": _cmd_resume,
     "board": _cmd_board,
     "commands": _cmd_commands,
+    "webui": _cmd_webui,
     "watch": _cmd_watch,
     "run": _cmd_run,
     "project": _cmd_project,
