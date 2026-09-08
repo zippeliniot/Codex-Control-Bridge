@@ -19,6 +19,6 @@ acceptance_criteria:
 - jede Aktualisierung mit Zeitstempel erkennbar, kein fragiles Bildschirmloeschen
 - read-only, keine Schreibzugriffe, kein --apply noetig (nur Anzeige)
 - alle Tests bleiben gruen
-status: WAITING_FOR_COPY_TO_CONTROL
+status: ARCHIVED
 created_at: '2026-09-08T00:00:00Z'
 created_by: browser-claude
