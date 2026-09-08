@@ -355,6 +355,36 @@ def _board_project(store, task) -> str:
     return profile.get("task_prefix") or project_id or "?"
 
 
+_ROLE_NAMES = {"anthropic": "Anthropic", "openai": "OpenAI", "human": "Human"}
+
+
+def _fmt_review_roles(roles) -> str:
+    """Board-Text der Fuehrungs-/Pruefrolle. ``None``/leer klar als solches erkennbar."""
+    if not roles:
+        return "(keine Rollentrennung)"
+    lead, support = roles.get("lead"), roles.get("support")
+    if lead is None and support is None:
+        return "(keine Rollentrennung)"
+    lead_txt = _ROLE_NAMES.get(lead, lead) if lead else "-"
+    if support is None:
+        return f"Lead: {lead_txt} (kein Support)"
+    return f"Lead: {lead_txt} · Support: {_ROLE_NAMES.get(support, support)}"
+
+
+def _board_review_roles(store, task) -> str:
+    """Fuehrung/Pruefung-Spalte: aufgeloeste review_roles, Fail-soft auf "?"
+    bei fehlendem/ungueltigem Profil (gleiches Muster wie ``_board_project``)."""
+    project_id = task.get("project_id", "")
+    try:
+        profile = profiles.load_profile(store.root, project_id,
+                                        schema_dir=store.schema_dir)
+    except (profiles.ProfileError, StoreError):
+        if task.get("review_roles") is not None:
+            return _fmt_review_roles(profiles.resolve_review_roles({}, task))
+        return "?"
+    return _fmt_review_roles(profiles.resolve_review_roles(profile, task))
+
+
 def _board_depends_note(store, task) -> str:
     notes = []
     for dep in task.get("depends_on", []) or []:
@@ -372,7 +402,7 @@ def _board_rows(store, *, now=None):
     """Ermittelt die Board-Zeilen (reine Daten, keine Ausgabe).
 
     Rueckgabe: nach bridge_task_id sortierte Liste von Tupeln
-    ``(task_id, projekt, richtung, wartezeit, hinweis)``.
+    ``(task_id, projekt, fuehrung, richtung, wartezeit, hinweis)``.
     """
     now = now or datetime.now(timezone.utc)
     rows = []
@@ -393,6 +423,7 @@ def _board_rows(store, *, now=None):
         rows.append((
             task_id,
             _board_project(store, task),
+            _board_review_roles(store, task),
             _BOARD_DIRECTION[status],
             wait,
             _board_depends_note(store, task),
@@ -405,9 +436,10 @@ def _board_text(rows) -> str:
     """Baut aus den Board-Zeilen den Tabellentext (Einmal- und Watch-Modus)."""
     if not rows:
         return "(keine Auftraege warten auf Kopie)"
-    lines = [f"{'#':<3}{'Projekt':<13}{'Auftrag':<13}{'Richtung':<24}Wartet seit"]
-    for i, (task_id, projekt, richtung, wait, note) in enumerate(rows, start=1):
-        line = f"{i:<3}{projekt:<13}{task_id:<13}{richtung:<24}{wait}"
+    lines = [f"{'#':<3}{'Projekt':<13}{'Führung/Prüfung':<34}"
+             f"{'Auftrag':<13}{'Richtung':<24}Wartet seit"]
+    for i, (task_id, projekt, fuehrung, richtung, wait, note) in enumerate(rows, start=1):
+        line = f"{i:<3}{projekt:<13}{fuehrung:<34}{task_id:<13}{richtung:<24}{wait}"
         if note:
             line = f"{line}  {note}"
         lines.append(line)

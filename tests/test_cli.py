@@ -327,6 +327,56 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("===", out)
         self.assertIn("BRIDGE-0901", out)
 
+    # -- board Führung/Prüfung-Spalte (BRIDGE-019) ----------
+
+    def _write_ccb_profile(self, **extra):
+        pdir = self.tmp / "projects" / "codex-control-bridge"
+        pdir.mkdir(parents=True, exist_ok=True)
+        doc = {
+            "schema_version": "1.0", "kind": "bridge_project_profile",
+            "project_id": "codex-control-bridge", "repository": "X",
+            "default_branch": "main", "task_prefix": "BRIDGE", "read_only": False,
+        }
+        doc.update(extra)
+        (pdir / "project.yaml").write_text(yaml.safe_dump(doc), encoding="utf-8")
+
+    def test_board_review_roles_column_from_profile(self):
+        self._write_ccb_profile(
+            review_roles={"lead": "openai", "support": "anthropic"})
+        self.cli("task", "create", str(self.write_yaml(
+            "t.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertIn("Führung/Prüfung", out)
+        self.assertIn("Lead: OpenAI · Support: Anthropic", out)
+
+    def test_board_review_roles_task_override_wins(self):
+        self._write_ccb_profile(
+            review_roles={"lead": "anthropic", "support": "human"})
+        self.cli("task", "create", str(self.write_yaml(
+            "t.yaml", task_doc(bridge_task_id="BRIDGE-0901",
+                               review_roles={"lead": "openai", "support": None}))))
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertIn("Lead: OpenAI (kein Support)", out)
+
+    def test_board_review_roles_none_is_clearly_marked(self):
+        self._write_ccb_profile()  # kein review_roles
+        self.cli("task", "create", str(self.write_yaml(
+            "t.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertIn("(keine Rollentrennung)", out)
+
+    def test_board_review_roles_failsoft_without_profile(self):
+        self.cli("task", "create", str(self.write_yaml(
+            "t.yaml", task_doc(bridge_task_id="BRIDGE-0901",
+                               project_id="voellig-unbekannt"))))
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertNotIn("(keine Rollentrennung)", out)
+        self.assertIn("?", out)  # fail-soft-Markierung in der Spalte
+
     # -- commands (BRIDGE-016) ------------------------------
 
     def _clean_env(self):
