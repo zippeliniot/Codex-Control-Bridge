@@ -36,3 +36,5 @@
 {"actor": "claude-code", "bridge_task_id": "BRIDGE-0021", "event_type": "TASK_WAITING_FOR_COPY", "new_state": "WAITING_FOR_COPY_TO_CONTROL", "old_state": "COMPLETED", "reason": "auto: wartet auf Kopie in den Steuerchat", "timestamp": "2026-09-08T19:39:29Z"}
 {"actor": "human", "bridge_task_id": "BRIDGE-0021", "event_type": "REVIEW_REQUESTED", "new_state": "REVIEW_REQUIRED", "old_state": "WAITING_FOR_COPY_TO_CONTROL", "reason": "Ergebnis in Steuerchat kopiert", "timestamp": "2026-09-08T20:05:30Z"}
 {"actor": "human", "bridge_task_id": "BRIDGE-0021", "event_type": "TASK_ARCHIVED", "new_state": "ARCHIVED", "old_state": "REVIEW_REQUIRED", "reason": "Auftrag abgeschlossen", "timestamp": "2026-09-08T20:05:31Z"}
+{"actor": "human", "bridge_task_id": "BRIDGE-0019", "event_type": "REVIEW_REQUESTED", "new_state": "REVIEW_REQUIRED", "old_state": "WAITING_FOR_COPY_TO_CONTROL", "reason": "Ergebnis in Steuerchat kopiert", "timestamp": "2026-09-08T20:07:29Z"}
+{"actor": "human", "bridge_task_id": "BRIDGE-0019", "event_type": "TASK_ARCHIVED", "new_state": "ARCHIVED", "old_state": "REVIEW_REQUIRED", "reason": "Auftrag abgeschlossen", "timestamp": "2026-09-08T20:07:30Z"}
