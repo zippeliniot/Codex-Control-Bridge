@@ -106,6 +106,28 @@ class StoreTests(unittest.TestCase):
             self.store.create_task(valid_task(unerwartetes_feld="x"))
         self.assertEqual(self.audit_events(), [])
 
+    def test_task_executor_controller_review_roles_override_valid(self):
+        # additiv (BRIDGE-019): neue optionale Task-Felder
+        self.store.create_task(valid_task(
+            executor="codex", controller="openai",
+            review_roles={"lead": "openai", "support": "anthropic"}))
+        self.assertEqual(self.event_types(), ["TASK_CREATED"])
+
+    def test_task_without_new_override_fields_still_valid(self):
+        self.store.create_task(valid_task())
+        self.assertEqual(self.event_types(), ["TASK_CREATED"])
+
+    def test_task_invalid_executor_enum_rejected(self):
+        with self.assertRaises(SchemaValidationError):
+            self.store.create_task(valid_task(executor="gemini"))
+        self.assertEqual(self.audit_events(), [])
+
+    def test_task_invalid_review_role_enum_rejected(self):
+        with self.assertRaises(SchemaValidationError):
+            self.store.create_task(valid_task(
+                review_roles={"lead": "someone-else"}))
+        self.assertEqual(self.audit_events(), [])
+
     def test_create_task_twice_rejected(self):
         self.store.create_task(valid_task())
         with self.assertRaises(StoreError):
