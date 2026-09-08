@@ -89,6 +89,22 @@ Regeln:
   (fail-closed).
 - Nummernräume bleiben getrennt: niemals `DORF-xxx` im Footer verwenden.
 
+## `run finish` — Zusammenfassung verbindlich
+
+`bridge run finish` wird **niemals** ohne `--summary` aufgerufen — ein
+nackter Aufruf (`run finish --status COMPLETED --actor claude-code`) lässt
+`result.yaml` ohne aussagekräftigen Inhalt zurück (leeres `summary`, leere
+`acceptance_results`, unvollständige `changed_files`) und zwingt den
+Steuerprozess, Änderungen manuell per `git diff` zu rekonstruieren.
+
+- `--summary "..."`: kurze, konkrete Zusammenfassung, was der Lauf getan hat
+  (nicht nur „Auftrag abgeschlossen").
+- Wo `acceptance_results` sinnvoll dokumentiert werden soll (Abgleich gegen
+  die Akzeptanzkriterien aus `work-packages/BRIDGE-xxx.md`): `--from
+  draft.yaml` mit den entsprechenden Feldern nutzen, statt sie wegzulassen.
+- Ziel: `result.yaml` muss für sich allein lesbar sein, ohne dass jemand den
+  Commit-Verlauf durchsuchen muss.
+
 ## Python-Umgebung (verbindlich)
 
 - Python-Arbeit läuft **immer im repo-lokalen `.venv`** im Repo-Wurzelverzeichnis,
