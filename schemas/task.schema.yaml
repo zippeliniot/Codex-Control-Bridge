@@ -144,6 +144,38 @@ properties:
     enum: [LOW, MEDIUM, HIGH, null]
     default: null
 
+  executor:
+    description: >-
+      Auftragsspezifischer Override der Ausfuehrungsinstanz. Null = vom
+      Projektprofil erben (project.schema.yaml: executor).
+    type: ["string", "null"]
+    enum: [codex, claude-code, null]
+    default: null
+
+  controller:
+    description: >-
+      Auftragsspezifischer Override der Steuerinstanz. Null = vom
+      Projektprofil erben (project.schema.yaml: controller).
+    type: ["string", "null"]
+    enum: [anthropic, openai, human, null]
+    default: null
+
+  review_roles:
+    description: >-
+      Auftragsspezifischer Override der Fuehrungs-/Pruefrolle. Null = vom
+      Projektprofil erben (project.schema.yaml: review_roles). Bei
+      Nicht-Null vollstaendig (lead + support), kein Teil-Override.
+    type: ["object", "null"]
+    additionalProperties: false
+    default: null
+    properties:
+      lead:
+        type: ["string", "null"]
+        enum: [anthropic, openai, human, null]
+      support:
+        type: ["string", "null"]
+        enum: [anthropic, openai, human, null]
+
   # ---------- Status / Provenienz ----------
   status:
     description: "Aktueller Status. Standard CREATED. Übergänge: BRIDGE-004."
