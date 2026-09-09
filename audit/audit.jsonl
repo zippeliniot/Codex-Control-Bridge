@@ -52,3 +52,4 @@
 {"actor": "browser-claude", "bridge_task_id": "BRIDGE-0022", "event_type": "TASK_WAITING_FOR_HANDOFF", "new_state": "WAITING_FOR_HANDOFF_TO_EXECUTOR", "old_state": "READY", "reason": "auto: wartet auf Weitergabe an Executor", "timestamp": "2026-09-09T08:36:13Z"}
 {"actor": "claude-code", "bridge_task_id": "BRIDGE-0022", "event_type": "TASK_CLAIMED", "new_state": "CLAIMED", "old_state": "WAITING_FOR_HANDOFF_TO_EXECUTOR", "reason": "runner: start -> CLAIMED", "timestamp": "2026-09-09T08:36:13Z"}
 {"actor": "claude-code", "bridge_task_id": "BRIDGE-0022", "event_type": "TASK_STARTED", "new_state": "RUNNING", "old_state": "CLAIMED", "reason": "runner: start -> RUNNING", "timestamp": "2026-09-09T08:36:13Z"}
+{"actor": "claude-code", "bridge_task_id": "BRIDGE-0020", "event_type": "TASK_STARTED", "new_state": "RUNNING", "old_state": "REVIEW_REQUIRED", "reason": "runner: resume", "timestamp": "2026-09-09T08:40:33Z"}
