@@ -199,6 +199,47 @@ class ResumeTests(Base):
         with self.assertRaises(runner.RunnerError):   # frischer Task ist CREATED
             runner.resume(self.store, "BRIDGE-0900", "a")
 
+    # -- BRIDGE-022: Wiedereinstieg aus REVIEW_REQUIRED --------------
+
+    def _to_review(self):
+        runner.start(self.store, "BRIDGE-0900", "a", now=T0)
+        runner.finish(self.store, "BRIDGE-0900", "REVIEW_REQUIRED",
+                      actor="a", git_info_fn=git_stub)
+
+    def test_resume_from_review_required(self):
+        self._to_review()
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"],
+                         "REVIEW_REQUIRED")
+        new_run = runner.resume(self.store, "BRIDGE-0900", "a",
+                                now=T0 + timedelta(hours=1))
+        self.assertEqual(new_run, "RUN-02")
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"], "RUNNING")
+        self.assertEqual(
+            heartbeat.read_heartbeat(self.tmp, "BRIDGE-0900", "RUN-02")["last_seen"],
+            "2026-01-01T01:00:00Z")
+        types = self.audit_types()
+        # direkter Ast REVIEW_REQUIRED -> RUNNING: kein WAITING_FOR_RESUME-
+        # Zwischenschritt; der Wechsel wird als TASK_STARTED protokolliert
+        # (audit-event-map.yaml, by_new_state[RUNNING]) - unveraendert.
+        self.assertNotIn("TASK_WAITING_FOR_RESUME", types)
+        self.assertEqual(types[-1], "TASK_STARTED")
+        self.assertLess(types.index("REVIEW_REQUESTED"),
+                        len(types) - 1)
+
+    def test_resume_from_waiting_for_copy_still_fails(self):
+        # Regression: die Erweiterung darf nicht zu freizuegig werden.
+        runner.start(self.store, "BRIDGE-0900", "a", now=T0)
+        runner.finish(self.store, "BRIDGE-0900", "COMPLETED", actor="a",
+                      git_info_fn=git_stub)
+        self.assertEqual(self.store.load_task("BRIDGE-0900")["status"],
+                         "WAITING_FOR_COPY_TO_CONTROL")
+        with self.assertRaises(runner.RunnerError):
+            runner.resume(self.store, "BRIDGE-0900", "a")
+
+    def test_resume_from_set_is_exactly_three_states(self):
+        self.assertEqual(runner._RESUME_FROM,
+                         ("INTERRUPTED", "WAITING_FOR_RESUME", "REVIEW_REQUIRED"))
+
     def test_resume_hint_surfaces_from_last_result(self):
         self._interrupt()
         self.assertEqual(runner.last_resume_hint(self.store, "BRIDGE-0900"),
