@@ -5,9 +5,12 @@ Startet einen echten Server auf einem vom OS vergebenen Port (0), ruft ihn per
 """
 
 import json
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
+import textwrap
 import threading
 import unittest
 import urllib.error
@@ -357,6 +360,134 @@ class WebUiActionTests(WebUiBase):
         self.assertEqual(code, 0)
         self.assertIn("REVIEW_REQUIRED", out)
         self.assertEqual(self.status_of("BRIDGE-0901"), "REVIEW_REQUIRED")
+
+
+_NODE = shutil.which("node")
+
+
+def _run_node(script: str) -> str:
+    proc = subprocess.run([_NODE, "-e", script], capture_output=True,
+                          text=True, encoding="utf-8", timeout=20)
+    if proc.returncode != 0:
+        raise AssertionError(f"node fehlgeschlagen: {proc.stderr or proc.stdout}")
+    return proc.stdout.strip()
+
+
+class WebUiFrontendTests(unittest.TestCase):
+    """BRIDGE-023: Auto-Refresh-Härtung, persistenter Log, Client-Filter.
+
+    Reines Frontend-JS in ``_PAGE`` - getestet über (a) strukturelle Zusicherungen
+    am Template und (b) die als ``webui._PURE_JS`` isolierten seiteneffektfreien
+    Funktionen, ausgeführt per node (übersprungen, wenn node fehlt).
+    """
+
+    PAGE = webui._PAGE
+    SCRIPT = re.search(r"<script>(.*)</script>", webui._PAGE, re.S).group(1)
+
+    # -- Struktur / Regression ------------------------------------
+
+    def test_flash_and_log_both_present(self):
+        # #flash bleibt, #log kommt zusaetzlich dazu (kein Ersatz).
+        self.assertIn('<div id="flash">', self.PAGE)
+        self.assertIn('<div id="log"', self.PAGE)
+        self.assertIn("overflow-y: auto", self.PAGE)  # scrollbarer Log
+
+    def test_actor_field_not_overwritten_when_filled(self):
+        # Regression (Akzeptanzkriterium 1): refresh() befuellt actor nur, wenn leer.
+        self.assertRegex(self.SCRIPT, r"if\s*\(\s*!actorInput\.value\b")
+
+    def test_filter_inputs_present_and_static(self):
+        for fid in ("f-projekt", "f-status", "f-id"):
+            self.assertEqual(self.PAGE.count(f'id="{fid}"'), 1,
+                             f"{fid} muss genau einmal (statisch im HTML) stehen")
+        self.assertIn('id="f-clear"', self.PAGE)
+
+    def test_log_is_appended_from_post_not_refresh(self):
+        # addLog() wird in post() aufgerufen (Erfolg UND Fehler), nie in refresh().
+        post_body = re.search(r"async function post\(.*?\n\}\n", self.SCRIPT, re.S).group(0)
+        refresh_body = re.search(r"async function refresh\(.*?\n\}\n", self.SCRIPT, re.S).group(0)
+        self.assertGreaterEqual(post_body.count("addLog("), 3)   # ok + http-err + net-err
+        self.assertNotIn("addLog(", refresh_body)
+
+    def test_refresh_only_touches_tbody_not_filter_inputs(self):
+        refresh_body = re.search(r"async function refresh\(.*?\n\}\n", self.SCRIPT, re.S).group(0)
+        # refresh() rendert ueber renderTables(); baut die Inputs nicht neu.
+        self.assertIn("renderTables()", refresh_body)
+        for fid in ("f-projekt", "f-status", "f-id"):
+            self.assertNotIn(fid, refresh_body)
+
+    def test_filter_state_kept_in_js_variable(self):
+        self.assertRegex(self.SCRIPT, r"const filterState\s*=\s*\{")
+        # renderTables liest filterState (nicht die DOM-Werte direkt)
+        render = re.search(r"function renderTables\(.*?\n\}\n", self.SCRIPT, re.S).group(0)
+        self.assertIn("filterState", render)
+
+    def test_no_new_server_route(self):
+        # board_payload-Keys und POST-Routen unveraendert (kein neuer Endpoint).
+        self.assertEqual(set(webui._Handler._POST_ROUTES), {"task", "run"})
+        self.assertEqual(webui._Handler._POST_ROUTES["task"], {"copied": "copied", "archive": "archive"})
+        self.assertEqual(webui._Handler._POST_ROUTES["run"], {"finish": "finish"})
+
+    # -- seiteneffektfreie Logik per node ------------------------
+
+    @unittest.skipUnless(_NODE, "node nicht verfügbar")
+    def test_filter_rows_projekt_status_id_and_combined(self):
+        script = webui._PURE_JS + textwrap.dedent("""
+            const rows = [
+              {bridge_task_id: "BRIDGE-0007", projekt: "DORF", status: "RUNNING"},
+              {bridge_task_id: "BRIDGE-0023", projekt: "BRIDGE", status: "RUNNING"},
+              {bridge_task_id: "DORF-0100",  projekt: "DORF", status: "REVIEW_REQUIRED"},
+            ];
+            const ids = f => filterRows(rows, f).map(r => r.bridge_task_id).join(",");
+            console.log(JSON.stringify({
+              projekt: ids({projekt: "dorf"}),
+              status:  ids({status: "review"}),
+              id:      ids({id: "0023"}),
+              combo:   ids({projekt: "dorf", status: "running"}),
+              none:    ids({}),
+            }));
+        """)
+        out = json.loads(_run_node(script))
+        self.assertEqual(out["projekt"], "BRIDGE-0007,DORF-0100")
+        self.assertEqual(out["status"], "DORF-0100")
+        self.assertEqual(out["id"], "BRIDGE-0023")
+        self.assertEqual(out["combo"], "BRIDGE-0007")
+        self.assertEqual(out["none"], "BRIDGE-0007,BRIDGE-0023,DORF-0100")
+
+    @unittest.skipUnless(_NODE, "node nicht verfügbar")
+    def test_make_log_entry_has_four_fields_for_ok_and_error(self):
+        script = webui._PURE_JS + textwrap.dedent("""
+            const ok  = makeLogEntry("12:00:00", "copied", "BRIDGE-0023", true,  "A -> B");
+            const err = makeLogEntry("12:00:01", "finish", "BRIDGE-0023", false, "Fehler 409: x");
+            console.log(JSON.stringify({ok, err, okLine: formatLogEntry(ok), errLine: formatLogEntry(err)}));
+        """)
+        out = json.loads(_run_node(script))
+        for e in (out["ok"], out["err"]):
+            self.assertEqual(set(e), {"time", "action", "bridge_task_id", "ok", "result"})
+        self.assertTrue(out["ok"]["ok"])
+        self.assertFalse(out["err"]["ok"])
+        self.assertIn("copied BRIDGE-0023: A -> B", out["okLine"])
+        self.assertIn("finish BRIDGE-0023: Fehler 409", out["errLine"])
+
+    @unittest.skipUnless(_NODE, "node nicht verfügbar")
+    def test_filter_reapplies_to_fresh_data_after_refresh_tick(self):
+        # "Filter-Persistenz ueber einen simulierten Refresh-Tick": derselbe
+        # filterState, danach neue Daten -> Filter greift erneut, ohne Reset.
+        script = webui._PURE_JS + textwrap.dedent("""
+            const filterState = {projekt: "dorf", status: "", id: ""};
+            let lastData = {board: [], other: [{bridge_task_id: "DORF-1", projekt: "DORF", status: "RUNNING"}]};
+            const view = () => filterRows(lastData.other, filterState).map(r => r.bridge_task_id);
+            const before = view();
+            // Refresh-Tick: neue Daten kommen an, filterState bleibt unangetastet
+            lastData = {board: [], other: [
+              {bridge_task_id: "DORF-2", projekt: "DORF", status: "RUNNING"},
+              {bridge_task_id: "BRIDGE-9", projekt: "BRIDGE", status: "RUNNING"},
+            ]};
+            console.log(JSON.stringify({before, after: view()}));
+        """)
+        out = json.loads(_run_node(script))
+        self.assertEqual(out["before"], ["DORF-1"])
+        self.assertEqual(out["after"], ["DORF-2"])   # Filter weiterhin aktiv
 
 
 class WebUiCliTests(WebUiBase):
