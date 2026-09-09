@@ -189,6 +189,34 @@ def _cmd_validate(args, store) -> int:
     return 0
 
 
+def task_copied(store, task_id, actor):
+    """'Ergebnis wurde in den Steuerchat kopiert' -> REVIEW_REQUIRED.
+
+    Gemeinsame Logik fuer ``bridge task copied`` und den Web-Endpunkt - kein
+    Parallel-Code. Fail-closed: nur aus WAITING_FOR_COPY_TO_CONTROL zulaessig
+    (die allgemeine Uebergangstabelle allein wuerde auch RUNNING durchlassen).
+    """
+    current = store.load_task(task_id).get("status")
+    if current != "WAITING_FOR_COPY_TO_CONTROL":
+        raise StoreError(
+            f"{task_id}: 'copied' nur aus WAITING_FOR_COPY_TO_CONTROL "
+            f"zulässig (aktueller Zustand: {current}).")
+    return store.set_status(task_id, "REVIEW_REQUIRED", actor, None,
+                            reason="Ergebnis in Steuerchat kopiert")
+
+
+def task_archive(store, task_id, actor, reason=None):
+    """'Dieser Auftrag ist erledigt' -> ARCHIVED. Gemeinsame Logik fuer
+    ``bridge task archive`` und den Web-Endpunkt.
+
+    Bewusst OHNE Ausgangszustands-Check: aus welchen Zustaenden ARCHIVED
+    erreichbar ist, regelt schemas/state-model.yaml bereits fail-closed
+    (z. B. nicht direkt aus RUNNING).
+    """
+    return store.set_status(task_id, "ARCHIVED", actor, None,
+                            reason=reason or "Auftrag abgeschlossen")
+
+
 def _cmd_task(args, store) -> int:
     if args.task_cmd == "create":
         doc = store.create_task(args.path)
@@ -218,28 +246,12 @@ def _cmd_task(args, store) -> int:
             print(f"{task_id}\t{status}")
         return 0
     if args.task_cmd == "copied":
-        # Fail-closed: 'copied' garantiert, dass das Ergebnis wirklich kopiert
-        # wurde. Das ist nur aus WAITING_FOR_COPY_TO_CONTROL heraus zulässig;
-        # die allgemeine Übergangstabelle allein würde auch RUNNING durchlassen.
-        current = store.load_task(args.task_id).get("status")
-        if current != "WAITING_FOR_COPY_TO_CONTROL":
-            raise StoreError(
-                f"{args.task_id}: 'copied' nur aus WAITING_FOR_COPY_TO_CONTROL "
-                f"zulässig (aktueller Zustand: {current}).")
-        event = store.set_status(args.task_id, "REVIEW_REQUIRED", args.actor, None,
-                                 reason="Ergebnis in Steuerchat kopiert")
+        event = task_copied(store, args.task_id, args.actor)
         print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']} "
               f"({event['event_type']})")
         return 0
     if args.task_cmd == "archive":
-        # Bewusst OHNE Ausgangszustands-Check (anders als 'copied'): 'archive'
-        # hat kein enges semantisches Versprechen, sondern heisst schlicht
-        # "dieser Auftrag ist erledigt". Aus welchen Zustaenden ARCHIVED
-        # erreichbar ist, regelt die Zustandstabelle (schemas/state-model.yaml)
-        # bereits fail-closed - z. B. nicht direkt aus RUNNING.
-        reason = args.reason or "Auftrag abgeschlossen"
-        event = store.set_status(args.task_id, "ARCHIVED", args.actor, None,
-                                 reason=reason)
+        event = task_archive(store, args.task_id, args.actor, args.reason)
         print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']} "
               f"({event['event_type']})")
         return 0
