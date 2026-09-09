@@ -1,0 +1,40 @@
+schema_version: '1.0'
+kind: bridge_task
+bridge_task_id: BRIDGE-0023
+project_id: codex-control-bridge
+title: Web-UI-Verbesserungen — Auto-Refresh-Haertung, persistenter Log, Client-Filter
+description: 'Web-UI (BRIDGE-020) um drei Frontend-Verbesserungen erweitern, ohne
+  neuen Server-Endpoint: (1) Regressionstest fuer bestehenden Actor-Feld-Schutz gegen
+  Auto-Refresh-Ueberschreibung, (2) persistenter, scrollbarer Aktions-Log (Zeitstempel/Aktion/Ergebnis)
+  zusaetzlich zur bestehenden 6s-Flash-Meldung statt deren Ersatz, (3) clientseitige
+  Filter/Suche im Board nach Projekt, Status und bridge_task_id, die einen 15s-Auto-Refresh-Tick
+  uebersteht (Filterzustand und Eingabefokus bleiben erhalten). Details, Kontext und
+  Umsetzungsschritte in work-packages/BRIDGE-023.md.'
+task_class: FEATURE
+repository: Codex-Control-Bridge
+branch: main
+git:
+  expected_head: 60ac34e
+permissions:
+- WORKTREE_WRITE
+- TEST_EXECUTION
+- GIT_PUSH
+depends_on: []
+acceptance_criteria:
+- Actor-Feld wird von refresh() nicht ueberschrieben, wenn bereits ein Wert eingetragen
+  ist (Regressionstest vorhanden und gruen)
+- 'Persistenter Aktions-Log zeigt Zeitstempel, Aktion, bridge_task_id und Ergebnis
+  fuer jede Aktion (Erfolg und Fehler), uebersteht mehrere Refresh-Ticks, #flash bleibt
+  zusaetzlich bestehen'
+- Client-Filter (Projekt, Status, bridge_task_id) reduziert Board und Zusatzliste
+  korrekt, auch kombiniert
+- Aktiver Filterzustand uebersteht einen Auto-Refresh-Tick
+- Eingabefokus/Cursorposition in Filterfeldern uebersteht einen Auto-Refresh-Tick
+  waehrend des Tippens
+- Kein neuer Server-Endpoint, kein serverseitiges Filtern
+- Bestehende Tests (WebUiReadTests, WebUiActionTests, WebUiCliTests) weiterhin gruen
+- Alle Tests gruen (bestehende Basis + neue), frischer Klon verifiziert
+- Commit gepusht (GIT_PUSH-Berechtigung im Profil)
+status: RUNNING
+created_at: '2026-09-09T15:52:31Z'
+created_by: browser-claude
