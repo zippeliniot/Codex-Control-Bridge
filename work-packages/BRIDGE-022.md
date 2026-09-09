@@ -101,14 +101,14 @@ nach demselben Muster.
 
 ## Akzeptanzkriterien
 
-- [ ] `bridge run resume BRIDGE-0020 --actor claude-code` funktioniert jetzt
+- [x] `bridge run resume BRIDGE-0020 --actor claude-code` funktioniert jetzt
       aus dem Zustand `REVIEW_REQUIRED` (manueller Nachtest gegen den
       echten BRIDGE-0020-Auftrag nach diesem Fix, nicht nur Unit-Test).
-- [ ] `_RESUME_FROM` enthält `REVIEW_REQUIRED` zusätzlich zu den
+- [x] `_RESUME_FROM` enthält `REVIEW_REQUIRED` zusätzlich zu den
       bisherigen zwei Werten, keine weiteren Zustände.
-- [ ] `resume()` aus nicht erlaubten Zuständen scheitert weiterhin mit
+- [x] `resume()` aus nicht erlaubten Zuständen scheitert weiterhin mit
       `RunnerError` (Regressionstest vorhanden und grün).
-- [ ] Bestehendes Verhalten für `INTERRUPTED`/`WAITING_FOR_RESUME`
+- [x] Bestehendes Verhalten für `INTERRUPTED`/`WAITING_FOR_RESUME`
       unverändert.
-- [ ] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
-- [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
+- [x] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
+- [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`) — folgt nach `run finish`.
