@@ -38,7 +38,11 @@ _RUN_RE = re.compile(r"^RUN-[0-9]{2,}$")
 _START_CHAIN = ("CREATED", "READY", "WAITING_FOR_HANDOFF_TO_EXECUTOR",
                 "CLAIMED", "RUNNING")
 _START_FROM = _START_CHAIN[:-1]           # zulässige Ausgangszustände für start()
-_RESUME_FROM = ("INTERRUPTED", "WAITING_FOR_RESUME")
+# REVIEW_REQUIRED ist hier zulässig, weil schemas/state-model.yaml den Übergang
+# REVIEW_REQUIRED -> RUNNING ausdrücklich erlaubt (Wiedereinstieg nach Review,
+# BRIDGE-022). APPROVAL_REQUIRED -> RUNNING wäre laut Modell ebenfalls erlaubt,
+# ist aber bewusst nicht mit aufgenommen (kein aktueller Bedarf).
+_RESUME_FROM = ("INTERRUPTED", "WAITING_FOR_RESUME", "REVIEW_REQUIRED")
 
 
 class RunnerError(StoreError):
@@ -167,7 +171,12 @@ def finish(store, task_id, status, *, draft=None, base_head=None, actor,
 
 
 def resume(store, task_id, actor, machine=None, *, now=None) -> str:
-    """INTERRUPTED/WAITING_FOR_RESUME -> RUNNING (ein Schritt), neuer RUN, frischer Heartbeat."""
+    """INTERRUPTED/WAITING_FOR_RESUME/REVIEW_REQUIRED -> RUNNING (ein Schritt),
+    neuer RUN, frischer Heartbeat.
+
+    INTERRUPTED geht über den Zwischenschritt WAITING_FOR_RESUME; WAITING_FOR_RESUME
+    und REVIEW_REQUIRED gehen direkt auf RUNNING (jeweils ein laut state-model.yaml
+    erlaubter Übergang)."""
     status = store.load_task(task_id).get("status")
     if status not in _RESUME_FROM:
         raise RunnerError(
