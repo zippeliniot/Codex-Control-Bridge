@@ -190,6 +190,32 @@ def _apply_action(store, kind: str, task_id: str, body: dict) -> dict:
 # HTTP
 # --------------------------------------------------------------------------- #
 
+# Seiteneffektfreie Frontend-Helfer. Als eigene Konstante gehalten, damit sie
+# ohne Browser testbar sind (tests/test_webui.py fuehrt sie per node aus, wenn
+# node vorhanden ist) - und trotzdem nur EINE Quelle: unten in _PAGE eingesetzt.
+_PURE_JS = r"""
+// Client-Filter (BRIDGE-023): Teilstring, case-insensitive, ANDed.
+function rowMatches(row, f) {
+  var p = (f.projekt || "").trim().toLowerCase();
+  var s = (f.status || "").trim().toLowerCase();
+  var id = (f.id || "").trim().toLowerCase();
+  if (p && String(row.projekt == null ? "" : row.projekt).toLowerCase().indexOf(p) < 0) return false;
+  if (s && String(row.status == null ? "" : row.status).toLowerCase().indexOf(s) < 0) return false;
+  if (id && String(row.bridge_task_id == null ? "" : row.bridge_task_id).toLowerCase().indexOf(id) < 0) return false;
+  return true;
+}
+function filterRows(rows, f) {
+  return (rows || []).filter(function (r) { return rowMatches(r, f); });
+}
+// Persistenter Aktions-Log (BRIDGE-023): ein Eintrag pro Aktion, Erfolg wie Fehler.
+function makeLogEntry(now, action, id, ok, resultText) {
+  return {time: now, action: action, bridge_task_id: id, ok: !!ok, result: resultText};
+}
+function formatLogEntry(e) {
+  return "[" + e.time + "] " + e.action + " " + e.bridge_task_id + ": " + e.result;
+}
+"""
+
 _PAGE = r"""<!doctype html>
 <html lang="de">
 <head>
@@ -205,6 +231,13 @@ _PAGE = r"""<!doctype html>
   .bar { margin: .5rem 0 1rem; }
   .bar label { color: #888; }
   input { font: inherit; padding: .2rem .4rem; }
+  #filters label { margin-right: 1rem; }
+  #filters input { color: inherit; }
+  #log { max-height: 12rem; overflow-y: auto; margin: .5rem 0 1rem;
+         border: 1px solid #8883; padding: .3rem .5rem; font-size: .85rem; }
+  #log:empty { display: none; }
+  #log > div { padding: .1rem 0; border-bottom: 1px solid #8882; }
+  #log > div:last-child { border-bottom: 0; }
   table { border-collapse: collapse; width: 100%; max-width: 78rem; }
   th, td { text-align: left; padding: .35rem .6rem; border-bottom: 1px solid #8884; vertical-align: top; }
   th { font-weight: 600; }
@@ -224,6 +257,16 @@ _PAGE = r"""<!doctype html>
   <input id="actor" value="" size="24">
 </div>
 <div id="flash"></div>
+
+<div class="bar" id="filters">
+  <label>Projekt <input id="f-projekt" size="14" autocomplete="off"></label>
+  <label>Status <input id="f-status" size="18" autocomplete="off" list="statuslist"></label>
+  <label>Auftrag <input id="f-id" size="14" autocomplete="off"></label>
+  <button type="button" id="f-clear">Filter zur&uuml;cksetzen</button>
+  <datalist id="statuslist"></datalist>
+</div>
+
+<div id="log" aria-label="Aktions-Log"></div>
 
 <h2>Board &ndash; wartet auf Weitergabe / Kopie</h2>
 <table id="board"><thead><tr>
@@ -245,9 +288,20 @@ _PAGE = r"""<!doctype html>
 </p>
 
 <script>
+%PURE_JS%
+
 const REFRESH_MS = %REFRESH_MS%;
 let FINISH_TARGETS = ["COMPLETED", "FAILED", "BLOCKED", "REVIEW_REQUIRED", "APPROVAL_REQUIRED"];
 const ACTION_LABEL = {copied: "Kopiert → Review", archive: "Archivieren", finish: "Lauf abschließen"};
+
+// Zustand, der einen 15s-Refresh-Tick ueberleben muss (BRIDGE-023):
+// - filterState in JS-Variablen, nicht nur im DOM
+// - lastData: letzter /api/board-Payload, damit Filteraenderungen ohne
+//   erneuten Fetch neu gerendert werden koennen
+// - logEntries: In-Memory-Historie, wird NIE vom refresh()-Zyklus angeruehrt
+const filterState = {projekt: "", status: "", id: ""};
+let lastData = {board: [], other: []};
+const logEntries = [];
 
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"]/g, c => (
@@ -268,6 +322,45 @@ function flash(msg, cls) {
   f.textContent = msg;
   f.className = cls;
   if (cls === "ok") setTimeout(() => { if (f.textContent === msg) { f.textContent = ""; f.className = ""; } }, 6000);
+}
+
+// --- persistenter Aktions-Log: nur beim Anhaengen gerendert, nie im refresh() ---
+function addLog(action, id, ok, resultText) {
+  const entry = makeLogEntry(new Date().toLocaleTimeString(), action, id, ok, resultText);
+  logEntries.unshift(entry);
+  const el = document.getElementById("log");
+  const div = document.createElement("div");
+  div.className = ok ? "ok" : "err";
+  div.textContent = formatLogEntry(entry);
+  el.insertBefore(div, el.firstChild);   // neueste Eintraege oben
+}
+
+// --- Tabellen aus lastData + aktivem Filter rendern (nur tbody, nie die Inputs) ---
+function renderTables() {
+  const f = {projekt: filterState.projekt, status: filterState.status, id: filterState.id};
+  const board = filterRows(lastData.board, f);
+  const other = filterRows(lastData.other, f);
+
+  document.querySelector("#board tbody").innerHTML = board.length
+    ? board.map((r, i) => row([
+        i + 1, esc(r.projekt), esc(r.fuehrung), esc(r.richtung),
+        "<span class='id'>" + esc(r.bridge_task_id) + "</span>",
+        esc(r.wartet_seit), esc(r.hinweis), actionButtons(r.bridge_task_id)(r.actions)])).join("")
+    : row(["<span class='empty'>keine passenden Auftr&auml;ge</span>"]);
+
+  document.querySelector("#other tbody").innerHTML = other.length
+    ? other.map((r, i) => row([
+        i + 1, "<span class='id'>" + esc(r.bridge_task_id) + "</span>",
+        esc(r.projekt), esc(r.status), esc(r.wartet_seit),
+        actionButtons(r.bridge_task_id)(r.actions)])).join("")
+    : row(["<span class='empty'>nichts passt</span>"]);
+}
+
+function updateStatusList() {
+  const seen = {};
+  lastData.board.concat(lastData.other).forEach(r => { if (r.status) seen[r.status] = 1; });
+  document.getElementById("statuslist").innerHTML =
+    Object.keys(seen).sort().map(s => "<option value='" + esc(s) + "'>").join("");
 }
 
 async function post(kind, id) {
@@ -305,12 +398,16 @@ async function post(kind, id) {
     });
     const data = await res.json();
     if (!res.ok || data.error) {
-      flash("Fehler (" + res.status + "): " + (data.error || "unbekannt"), "err");
+      const msg = "Fehler (" + res.status + "): " + (data.error || "unbekannt");
+      flash(msg, "err");
+      addLog(kind, id, false, msg);
     } else {
       flash("OK: " + id + " " + data.old_state + " → " + data.new_state, "ok");
+      addLog(kind, id, true, data.old_state + " → " + data.new_state);
     }
   } catch (e) {
     flash("Netzwerkfehler: " + e.message, "err");
+    addLog(kind, id, false, "Netzwerkfehler: " + e.message);
   }
   refresh();   // sofort neu laden, nicht auf den 15s-Tick warten
 }
@@ -322,25 +419,14 @@ async function refresh() {
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || ("HTTP " + res.status));
 
+    lastData = {board: data.board || [], other: data.other || []};
     if (Array.isArray(data.finish_targets)) FINISH_TARGETS = data.finish_targets;
+
     const actorInput = document.getElementById("actor");
-    if (!actorInput.value && data.actor) actorInput.value = data.actor;
+    if (!actorInput.value && data.actor) actorInput.value = data.actor;  // nur wenn leer
 
-    const b = document.querySelector("#board tbody");
-    b.innerHTML = data.board.length
-      ? data.board.map((r, i) => row([
-          i + 1, esc(r.projekt), esc(r.fuehrung), esc(r.richtung),
-          "<span class='id'>" + esc(r.bridge_task_id) + "</span>",
-          esc(r.wartet_seit), esc(r.hinweis), actionButtons(r.bridge_task_id)(r.actions)])).join("")
-      : row(["<span class='empty'>keine Auftr&auml;ge warten auf Kopie</span>"]);
-
-    const o = document.querySelector("#other tbody");
-    o.innerHTML = data.other.length
-      ? data.other.map((r, i) => row([
-          i + 1, "<span class='id'>" + esc(r.bridge_task_id) + "</span>",
-          esc(r.projekt), esc(r.status), esc(r.wartet_seit),
-          actionButtons(r.bridge_task_id)(r.actions)])).join("")
-      : row(["<span class='empty'>nichts offen</span>"]);
+    updateStatusList();
+    renderTables();   // beruecksichtigt den zuletzt aktiven Filter erneut
 
     meta.textContent = "Aktualisiert: " + new Date().toISOString()
       + "  ·  Auto-Refresh alle " + (REFRESH_MS / 1000) + "s  ·  nur lokal (127.0.0.1)";
@@ -351,6 +437,20 @@ async function refresh() {
   }
 }
 
+// Filter-Eingaben: Wert in filterState spiegeln und nur die tbody neu rendern.
+// Die Inputs selbst werden nie ersetzt -> Fokus/Cursor bleiben beim Tippen.
+[["f-projekt", "projekt"], ["f-status", "status"], ["f-id", "id"]].forEach(pair => {
+  document.getElementById(pair[0]).addEventListener("input", ev => {
+    filterState[pair[1]] = ev.target.value;
+    renderTables();
+  });
+});
+document.getElementById("f-clear").addEventListener("click", () => {
+  filterState.projekt = filterState.status = filterState.id = "";
+  ["f-projekt", "f-status", "f-id"].forEach(x => { document.getElementById(x).value = ""; });
+  renderTables();
+});
+
 document.addEventListener("click", ev => {
   const btn = ev.target.closest("button[data-act]");
   if (btn) post(btn.dataset.act, btn.dataset.id);
@@ -360,7 +460,7 @@ setInterval(refresh, REFRESH_MS);
 </script>
 </body>
 </html>
-""".replace("%REFRESH_MS%", str(REFRESH_SECONDS * 1000))
+""".replace("%PURE_JS%", _PURE_JS).replace("%REFRESH_MS%", str(REFRESH_SECONDS * 1000))
 
 
 class _Handler(BaseHTTPRequestHandler):
