@@ -1,0 +1,30 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0020
+project_id: codex-control-bridge
+run_id: RUN-02
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: 47bb32a1574c98711c9edfcdbf4ab1f117dc3880
+executor: claude-code
+started_at: '2026-09-09T08:40:33Z'
+ended_at: '2026-09-09T09:06:49Z'
+created_by: claude-code@unknown
+changed_files:
+- work-packages/BRIDGE-020.md
+summary: 'RUN-02 Aktions-Endpunkte in webui.py: POST /api/task/<id>/copied, POST /api/task/<id>/archive,
+  POST /api/run/<id>/finish. task-copied/-archive-Logik aus _cmd_task in wiederverwendbare
+  Funktionen task_copied()/task_archive() (cli.py) ausgelagert; die Web-Endpunkte
+  rufen exakt diese sowie runner.finish() auf - kein Parallel-Code, Audit-Eintrag
+  entsteht in der Store-/Runner-Logik. Serverseitig erzwungen: confirm:true + nicht-leerer
+  actor sonst HTTP 400; run finish zusaetzlich nicht-leere summary (BRIDGE-021) sonst
+  400; Origin/Referer muss http://127.0.0.1:<port> sein sonst 403; im Zustand unzulaessige
+  Aktion -> 409 mit gleicher Meldung wie CLI. GET /api/board liefert jetzt pro Zeile
+  actions (nur state-model-erlaubte Uebergaenge via state_machine.is_allowed) und
+  actor-Vorbelegung; Frontend rendert je Zeile Buttons mit confirm()/prompt()-Dialog
+  und laedt nach jeder Aktion sofort neu. SECURITY-MODEL.md Abschnitt Web-UI um Aktions-Endpunkte
+  erweitert. 12 neue Tests (echter Server, Erfolg + Zustandswechsel + Audit, fehlendes
+  confirm/actor/summary, falscher Ausgangszustand=CLI-Fehler, falscher Origin, Buttons
+  nur bei erlaubten Uebergaengen, CLI-Regression). 198 Tests gruen, frischer Klon
+  verifiziert. bridge board (CLI) und webui RUN-01-Leseverhalten unveraendert.'
