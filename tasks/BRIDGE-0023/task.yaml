@@ -35,6 +35,6 @@ acceptance_criteria:
 - Bestehende Tests (WebUiReadTests, WebUiActionTests, WebUiCliTests) weiterhin gruen
 - Alle Tests gruen (bestehende Basis + neue), frischer Klon verifiziert
 - Commit gepusht (GIT_PUSH-Berechtigung im Profil)
-status: WAITING_FOR_COPY_TO_CONTROL
+status: REVIEW_REQUIRED
 created_at: '2026-09-09T15:52:31Z'
 created_by: browser-claude
