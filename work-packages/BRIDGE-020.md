@@ -277,23 +277,25 @@ bridge run finish BRIDGE-0020 --status COMPLETED --actor claude-code \
   ergänzt, gilt für beide Stufen).
 
 **RUN-02 (Stufe 2):**
-- [ ] `POST /api/task/<id>/copied`, `.../archive`, `POST /api/run/<id>/finish`
+- [x] `POST /api/task/<id>/copied`, `.../archive`, `POST /api/run/<id>/finish`
   nutzen dieselbe Store-/Runner-Logik wie die entsprechenden
   CLI-Kommandos — kein Parallel-Code, keine abweichenden Zustandsregeln.
-- [ ] Jede der drei Aktionen scheitert serverseitig (HTTP 400) ohne
+  (`task_copied()`/`task_archive()` in `cli.py`, `runner.finish()`.)
+- [x] Jede der drei Aktionen scheitert serverseitig (HTTP 400) ohne
   `confirm: true` und ohne nicht-leeren `actor`; `run finish` zusätzlich
   ohne nicht-leere `summary`.
-- [ ] `POST`-Requests mit falschem/fehlendem `Origin`/`Referer` werden mit
+- [x] `POST`-Requests mit falschem/fehlendem `Origin`/`Referer` werden mit
   HTTP 403 abgelehnt.
-- [ ] Frontend zeigt Buttons nur für Aufträge/Status, bei denen der
+- [x] Frontend zeigt Buttons nur für Aufträge/Status, bei denen der
   jeweilige Übergang laut `state-model.yaml` zulässig ist, mit
-  Bestätigungsdialog vor jedem Klick.
-- [ ] Jede über die Web-UI ausgelöste Aktion erscheint korrekt in
+  Bestätigungsdialog vor jedem Klick. (`board_payload` liefert
+  `actions` pro Zeile via `state_machine.is_allowed`.)
+- [x] Jede über die Web-UI ausgelöste Aktion erscheint korrekt in
   `audit/audit.jsonl` (gleicher Mechanismus wie CLI-Aktionen, kein
   Sonderweg).
-- [ ] Kein bestehendes CLI-Verhalten (`task copied`/`archive`/`run finish`
+- [x] Kein bestehendes CLI-Verhalten (`task copied`/`archive`/`run finish`
   über das Terminal) ändert sich.
-- [ ] Alle Tests grün (bestehende Basis aus RUN-01 + neue), frischer Klon
-  verifiziert.
+- [x] Alle Tests grün (bestehende Basis aus RUN-01 + neue), frischer Klon
+  verifiziert. (198 Tests.)
 - [x] `docs/security/SECURITY-MODEL.md` enthält den neuen Abschnitt
   "Web-UI (BRIDGE-020)" mit der `127.0.0.1`-only-Begründung.
