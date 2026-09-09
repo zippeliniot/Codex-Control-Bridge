@@ -52,6 +52,28 @@ Vor jeder Übergabe ausführen: `scripts\handover-check.ps1` (bzw. unter Git Bas
 `bash scripts/handover-check.sh`). Meldet das Skript `FAIL`, ist die Übergabe
 nicht zulässig, bis alles committed und gepusht ist.
 
+## Git Push durch Claude Code
+
+Push bleibt grundsätzlich eine bewusste, freigegebene Aktion (Regel 6:
+Least Privilege) — das ändert sich hier nicht. Trägt ein Auftrag jedoch
+ausdrücklich die Berechtigung `GIT_PUSH` im Berechtigungsprofil
+(`docs/security/SECURITY-MODEL.md`, Abschnitt 2), darf Claude Code am
+Ende eines Laufs selbst `git push` ausführen. Die in
+`.claude/settings.json` hinterlegte Ask-Bestätigung für `git push`
+bleibt dabei bestehen und ersetzt die menschliche Freigabe — das
+Klicken auf "Erlauben" im Claude-Code-Fenster **ist** die Freigabe,
+kein zusätzlicher manueller Schritt in PowerShell nötig.
+
+Ohne `GIT_PUSH` im Berechtigungsprofil des Auftrags bleibt Push wie
+bisher ausschließlich Mensch-Aktion.
+
+`--force`-Push bleibt in jedem Fall verboten (Regel 6, Abschnitt 3 des
+Sicherheitsmodells) — unabhängig vom Berechtigungsprofil. Berechtigungen
+sind je Auftrag nur bei `bridge task create` festlegbar und danach
+unveränderlich — es gibt bewusst kein `task edit`. `GIT_PUSH` muss also
+bereits in der Staging-`tasks/incoming/<ID>.yaml` stehen, bevor der
+Auftrag angelegt wird.
+
 ## Modellsteuerung
 
 Das schwächste zuverlässig geeignete Modell mit der niedrigsten ausreichenden
