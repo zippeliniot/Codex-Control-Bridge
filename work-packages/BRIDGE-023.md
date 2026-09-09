@@ -148,4 +148,4 @@ laut Scope-Absprache).
       `WebUiCliTests`) weiterhin grün.
 - [x] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
       (208 Tests.)
-- [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`) — folgt nach `run finish`.
+- [x] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
