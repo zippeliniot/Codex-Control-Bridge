@@ -123,21 +123,29 @@ laut Scope-Absprache).
 
 ## Akzeptanzkriterien
 
-- [ ] Actor-Feld wird von `refresh()` nicht überschrieben, wenn bereits ein
+- [x] Actor-Feld wird von `refresh()` nicht überschrieben, wenn bereits ein
       Wert eingetragen ist (Regressionstest vorhanden und grün).
-- [ ] Persistenter Aktions-Log zeigt Zeitstempel, Aktion, betroffene
+      (`WebUiFrontendTests.test_actor_field_not_overwritten_when_filled`)
+- [x] Persistenter Aktions-Log zeigt Zeitstempel, Aktion, betroffene
       `bridge_task_id` und Ergebnis für jede ausgeführte Aktion
       (Erfolg **und** Fehler), bleibt über mehrere 15s-Refresh-Ticks hinweg
       sichtbar/gescrollt erhalten, `#flash` bleibt zusätzlich bestehen.
-- [ ] Client-Filter (Projekt, Status, `bridge_task_id`) reduziert Board und
+      (`#log` scrollbar, `addLog()` nur in `post()`, nie in `refresh()`;
+      `makeLogEntry`-Felder per node getestet.)
+- [x] Client-Filter (Projekt, Status, `bridge_task_id`) reduziert Board und
       "Offene Aufträge außerhalb des Boards" korrekt, auch in Kombination.
-- [ ] Aktiver Filterzustand übersteht einen Auto-Refresh-Tick (wird auf die
+      (`filterRows`/`rowMatches` per node getestet, inkl. Kombination.)
+- [x] Aktiver Filterzustand übersteht einen Auto-Refresh-Tick (wird auf die
       neu geladenen Daten erneut angewendet, nicht zurückgesetzt).
-- [ ] Eingabefokus/Cursorposition in Filterfeldern übersteht einen
-      Auto-Refresh-Tick während des Tippens.
-- [ ] Kein neuer Server-Endpoint, kein serverseitiges Filtern (Scope-Vorgabe
+      (`filterState` als JS-Variable, `renderTables()` aus `refresh()`;
+      `test_filter_reapplies_to_fresh_data_after_refresh_tick`.)
+- [x] Eingabefokus/Cursorposition in Filterfeldern übersteht einen
+      Auto-Refresh-Tick während des Tippens. (Inputs sind statisch im HTML,
+      `refresh()` schreibt nur `tbody` — `test_refresh_only_touches_tbody...`.)
+- [x] Kein neuer Server-Endpoint, kein serverseitiges Filtern (Scope-Vorgabe
       eingehalten, `board_payload()`/HTTP-Routen unverändert).
-- [ ] Bestehende Tests (`WebUiReadTests`, `WebUiActionTests`,
+- [x] Bestehende Tests (`WebUiReadTests`, `WebUiActionTests`,
       `WebUiCliTests`) weiterhin grün.
-- [ ] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
-- [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
+- [x] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
+      (208 Tests.)
+- [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`) — folgt nach `run finish`.
