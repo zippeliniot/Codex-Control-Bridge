@@ -111,4 +111,4 @@ nach demselben Muster.
 - [x] Bestehendes Verhalten für `INTERRUPTED`/`WAITING_FOR_RESUME`
       unverändert.
 - [x] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
-- [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`) — folgt nach `run finish`.
+- [x] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
