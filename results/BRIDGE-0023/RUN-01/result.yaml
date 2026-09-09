@@ -1,0 +1,28 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0023
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: c29b10fa3e7ab389fe0873511ac56be1bfa847cc
+executor: claude-code
+started_at: '2026-09-09T17:43:00Z'
+ended_at: '2026-09-09T17:43:01Z'
+created_by: claude-code@unknown
+changed_files:
+- results/BRIDGE-0023/RUN-01/heartbeat.json
+- work-packages/BRIDGE-023.md
+summary: 'Web-UI (webui.py _PAGE): (1) Auto-Refresh gehaertet - refresh() befuellt
+  das Actor-Feld weiterhin nur wenn leer und ruehrt nur die Tabellen-tbody an, nie
+  die Filter-Inputs oder den Log (Regressionstest). (2) Persistenter, scrollbarer
+  Aktions-Log (#log) zusaetzlich zu #flash: addLog() haengt bei jeder Aktion - Erfolg
+  wie Fehler - einen Eintrag oben an (Zeitstempel/Aktion/bridge_task_id/Ergebnis),
+  Rendering nur beim Anhaengen, nie im 15s-Zyklus. (3) Clientseitige Filter (Projekt/Status/bridge_task_id,
+  Teilstring, case-insensitive, kombinierbar) rein im Client auf dem gecachten /api/board-Payload
+  - filterState in JS-Variablen, renderTables() aus refresh() wendet den aktiven Filter
+  bei jedem Tick erneut auf frische Daten an, Fokus/Cursor bleiben erhalten. Kein
+  neuer Server-Endpoint, board_payload()/Routen unveraendert. Seiteneffektfreie Helfer
+  als webui._PURE_JS isoliert und per node getestet (skipUnless). 208 Tests gruen
+  (196 Basis + 12 neu in WebUiFrontendTests), frischer Klon verifiziert.'
