@@ -1,0 +1,24 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0022
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: 3e9f555ea3796a24096221ab608dfeaa382f8575
+executor: claude-code
+started_at: '2026-09-09T08:36:13Z'
+ended_at: '2026-09-09T08:41:26Z'
+created_by: claude-code@unknown
+changed_files:
+- work-packages/BRIDGE-022.md
+summary: 'runner._RESUME_FROM um REVIEW_REQUIRED erweitert (state-model.yaml erlaubt
+  REVIEW_REQUIRED->RUNNING, runner.py bildete den legalen Wiedereinstieg nicht ab;
+  Fund aus BRIDGE-0020 RUN-02). Funktionskoerper von resume() unveraendert - der bestehende
+  direkte Ast greift. Docstring angepasst. 3 neue Tests in test_runner.py: resume
+  aus REVIEW_REQUIRED (-> RUNNING, RUN-02, frischer Heartbeat, kein WAITING_FOR_RESUME-Zwischenschritt),
+  Regression WAITING_FOR_COPY_TO_CONTROL bleibt verboten, _RESUME_FROM enthaelt genau
+  drei Zustaende. 186 Tests gruen, frischer Klon verifiziert. Manueller Nachtest:
+  bridge run resume BRIDGE-0020 laeuft jetzt aus REVIEW_REQUIRED (RUN-02 angelegt).
+  work-packages/BRIDGE-020.md unberuehrt.'
