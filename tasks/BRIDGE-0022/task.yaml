@@ -27,6 +27,6 @@ acceptance_criteria:
 - bestehendes Verhalten fuer INTERRUPTED/WAITING_FOR_RESUME unveraendert
 - alle Tests gruen (bestehende Basis + neue), frischer Klon verifiziert
 - Commit gepusht (GIT_PUSH-Berechtigung im Profil)
-status: REVIEW_REQUIRED
+status: ARCHIVED
 created_at: '2026-09-09T00:00:00Z'
 created_by: browser-claude
