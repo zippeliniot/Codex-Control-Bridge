@@ -43,3 +43,6 @@
 {"actor": "browser-claude", "bridge_task_id": "BRIDGE-0020", "event_type": "TASK_WAITING_FOR_HANDOFF", "new_state": "WAITING_FOR_HANDOFF_TO_EXECUTOR", "old_state": "READY", "reason": "auto: wartet auf Weitergabe an Executor", "timestamp": "2026-09-08T20:29:06Z"}
 {"actor": "claude-code", "bridge_task_id": "BRIDGE-0020", "event_type": "TASK_CLAIMED", "new_state": "CLAIMED", "old_state": "WAITING_FOR_HANDOFF_TO_EXECUTOR", "reason": "runner: start -> CLAIMED", "timestamp": "2026-09-08T20:29:20Z"}
 {"actor": "claude-code", "bridge_task_id": "BRIDGE-0020", "event_type": "TASK_STARTED", "new_state": "RUNNING", "old_state": "CLAIMED", "reason": "runner: start -> RUNNING", "timestamp": "2026-09-08T20:29:20Z"}
+{"actor": "claude-code@unknown", "bridge_task_id": "BRIDGE-0020", "event_type": "RESULT_WRITTEN", "run_id": "RUN-01", "timestamp": "2026-09-09T07:38:45Z"}
+{"actor": "claude-code", "bridge_task_id": "BRIDGE-0020", "event_type": "TASK_COMPLETED", "new_state": "COMPLETED", "old_state": "RUNNING", "reason": "runner: finish -> COMPLETED", "timestamp": "2026-09-09T07:38:45Z"}
+{"actor": "claude-code", "bridge_task_id": "BRIDGE-0020", "event_type": "TASK_WAITING_FOR_COPY", "new_state": "WAITING_FOR_COPY_TO_CONTROL", "old_state": "COMPLETED", "reason": "auto: wartet auf Kopie in den Steuerchat", "timestamp": "2026-09-09T07:38:46Z"}

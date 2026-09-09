@@ -1,0 +1,27 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0020
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: eed7de0ae2cf9204a34aedc6e9d1385e80cf91e1
+executor: claude-code
+started_at: '2026-09-08T20:29:20Z'
+ended_at: '2026-09-09T07:38:45Z'
+created_by: claude-code@unknown
+changed_files:
+- docs/security/SECURITY-MODEL.md
+- work-packages/BRIDGE-020.md
+summary: 'RUN-01 Lese-Endpunkte: neues Modul src/bridge/webui.py (reine stdlib http.server),
+  Subcommand ''bridge webui serve --actor <a> [--port 8420]'' bindet hart an 127.0.0.1
+  ohne --host-Flag. GET / liefert Offline-HTML (inline CSS/JS, keine externen Assets)
+  mit 15s-Auto-Refresh gegen GET /api/board; /api/board gibt {board, other} zurueck
+  - board 1:1 aus _board_rows() der cli.py (einzige Datenquelle, plus rohes status-Feld
+  pro Zeile), other = nicht archivierte Auftraege ausserhalb der Board-Zustaende.
+  Rein lesend: 404/405 fuer alles andere, Store-/Profilfehler -> JSON {error} mit
+  HTTP 500 ohne Serverabbruch, Strg+C sauber. SECURITY-MODEL.md um Abschnitt ''Web-UI
+  (BRIDGE-020)'' ergaenzt (127.0.0.1-only-Begruendung, kein Auth-Layer dokumentiert).
+  10 neue Tests (echter Server auf Port 0), 183 gesamt gruen, frischer Klon verifiziert.
+  bridge board (CLI) unveraendert.'
