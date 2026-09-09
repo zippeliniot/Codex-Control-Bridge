@@ -1,4 +1,4 @@
-"""Hermetische Tests fuer die Lese-Web-UI (BRIDGE-020, RUN-01). stdlib unittest.
+"""Hermetische Tests fuer die Web-UI (BRIDGE-020, RUN-01 lesend + RUN-02 Aktionen).
 
 Startet einen echten Server auf einem vom OS vergebenen Port (0), ruft ihn per
 ``urllib.request`` ab und faehrt ihn wieder herunter - kein Mock der HTTP-Schicht.
@@ -15,13 +15,14 @@ import urllib.request
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import yaml  # noqa: E402
 
-from bridge import webui  # noqa: E402
+from bridge import importer, webui  # noqa: E402
 from bridge.cli import _board_rows, main  # noqa: E402
 from bridge.store import Store  # noqa: E402
 
@@ -105,6 +106,31 @@ class WebUiBase(unittest.TestCase):
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read().decode("utf-8")
 
+    _SENTINEL = object()
+
+    def post_json(self, path, body, *, origin=_SENTINEL):
+        port = self.httpd.server_address[1]
+        headers = {"Content-Type": "application/json"}
+        if origin is self._SENTINEL:
+            origin = f"http://127.0.0.1:{port}"
+        if origin is not None:
+            headers["Origin"] = origin
+        data = b"" if body is None else json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(f"http://127.0.0.1:{port}{path}",
+                                     data=data, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=5) as res:
+                return res.status, json.loads(res.read().decode("utf-8") or "{}")
+        except urllib.error.HTTPError as exc:
+            return exc.code, json.loads(exc.read().decode("utf-8") or "{}")
+
+    def status_of(self, task_id):
+        return self.store.load_task(task_id).get("status")
+
+    def audit_lines(self):
+        f = self.tmp / "audit" / "audit.jsonl"
+        return [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines() if x.strip()]
+
 
 # 'task create' laesst den Auftrag bereits in WAITING_FOR_HANDOFF_TO_EXECUTOR.
 _WALK = {
@@ -113,6 +139,8 @@ _WALK = {
     "RUNNING": ["CLAIMED", "RUNNING"],
     "WAITING_FOR_COPY_TO_CONTROL": ["CLAIMED", "RUNNING", "COMPLETED",
                                     "WAITING_FOR_COPY_TO_CONTROL"],
+    "REVIEW_REQUIRED": ["CLAIMED", "RUNNING", "COMPLETED",
+                        "WAITING_FOR_COPY_TO_CONTROL", "REVIEW_REQUIRED"],
     "ARCHIVED": ["CLAIMED", "RUNNING", "COMPLETED", "WAITING_FOR_COPY_TO_CONTROL",
                  "REVIEW_REQUIRED", "ARCHIVED"],
 }
@@ -163,13 +191,17 @@ class WebUiReadTests(WebUiBase):
         self.start()
         code, body = self.get("/api/board")
         self.assertEqual(code, 200)
-        self.assertEqual(json.loads(body), {"board": [], "other": []})
+        data = json.loads(body)
+        self.assertEqual(data["board"], [])
+        self.assertEqual(data["other"], [])
+        self.assertEqual(data["actor"], "tester")   # Vorbelegung fuer Buttons
 
-    def test_no_write_access_in_run01(self):
+    def test_unknown_routes_and_methods(self):
         self.start()
-        self.assertEqual(self.request("POST", "/api/board")[0], 405)
+        self.assertEqual(self.request("POST", "/api/board")[0], 404)   # kein POST-Ziel
+        self.assertEqual(self.request("PUT", "/api/task/BRIDGE-0901/archive")[0], 405)
         self.assertEqual(self.request("DELETE", "/api/task/BRIDGE-0901/archive")[0], 405)
-        self.assertEqual(self.get("/api/task/BRIDGE-0901/copied")[0], 404)
+        self.assertEqual(self.get("/api/task/BRIDGE-0901/copied")[0], 404)  # GET auf POST-Ziel
         self.assertEqual(self.get("/nonsense")[0], 404)
 
     def test_broken_store_returns_json_500_and_server_survives(self):
@@ -188,6 +220,143 @@ class WebUiReadTests(WebUiBase):
     def test_serve_binds_only_localhost(self):
         self.start()
         self.assertEqual(self.httpd.server_address[0], "127.0.0.1")
+
+
+class WebUiActionTests(WebUiBase):
+    """RUN-02: POST-Endpunkte task copied / archive / run finish."""
+
+    def _git_stub(self, root=None, base_head=None):
+        return {"repository": "R", "branch": "b", "head": "a" * 40,
+                "base_head": base_head, "commits": [], "changed_files": []}
+
+    # -- Same-Origin ----------------------------------------------
+
+    def test_post_without_origin_or_referer_is_403(self):
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/copied",
+                                    {"actor": "h", "confirm": True}, origin=None)
+        self.assertEqual(code, 403)
+        self.assertEqual(self.status_of("BRIDGE-0901"), "WAITING_FOR_COPY_TO_CONTROL")
+
+    def test_post_with_foreign_origin_is_403(self):
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self.start()
+        code, _ = self.post_json("/api/task/BRIDGE-0901/copied",
+                                 {"actor": "h", "confirm": True},
+                                 origin="http://evil.example")
+        self.assertEqual(code, 403)
+        self.assertEqual(self.status_of("BRIDGE-0901"), "WAITING_FOR_COPY_TO_CONTROL")
+
+    # -- Bestaetigungspflicht -----------------------------------
+
+    def test_copied_without_confirm_is_400(self):
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self.start()
+        code, _ = self.post_json("/api/task/BRIDGE-0901/copied", {"actor": "h"})
+        self.assertEqual(code, 400)
+        self.assertEqual(self.status_of("BRIDGE-0901"), "WAITING_FOR_COPY_TO_CONTROL")
+
+    def test_copied_without_actor_is_400(self):
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self.start()
+        code, _ = self.post_json("/api/task/BRIDGE-0901/copied",
+                                 {"actor": "   ", "confirm": True})
+        self.assertEqual(code, 400)
+
+    # -- Erfolg + echte Zustandsaenderung (Integration) ----------
+
+    def test_copied_success_changes_state_and_audit(self):
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/copied",
+                                    {"actor": "human", "confirm": True})
+        self.assertEqual(code, 200)
+        self.assertEqual(data["new_state"], "REVIEW_REQUIRED")
+        # echte Aenderung, nicht nur HTTP 200:
+        self.assertEqual(self.status_of("BRIDGE-0901"), "REVIEW_REQUIRED")
+        board = json.loads(self.get("/api/board")[1])
+        self.assertNotIn("BRIDGE-0901",
+                         [r["bridge_task_id"] for r in board["board"]])
+        # Audit-Eintrag durch die echte Store-Logik, mit actor:
+        last = self.audit_lines()[-1]
+        self.assertEqual(last["event_type"], "REVIEW_REQUESTED")
+        self.assertEqual(last["actor"], "human")
+
+    def test_copied_wrong_state_same_error_as_cli(self):
+        self.make_task("BRIDGE-0901", "RUNNING")
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/copied",
+                                    {"actor": "h", "confirm": True})
+        self.assertEqual(code, 409)
+        self.assertIn("WAITING_FOR_COPY_TO_CONTROL", data["error"])
+        self.assertEqual(self.status_of("BRIDGE-0901"), "RUNNING")
+
+    def test_archive_success(self):
+        self.make_task("BRIDGE-0901", "REVIEW_REQUIRED")
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/archive",
+                                    {"actor": "human", "confirm": True,
+                                     "reason": "fertig"})
+        self.assertEqual(code, 200)
+        self.assertEqual(self.status_of("BRIDGE-0901"), "ARCHIVED")
+
+    def test_finish_success_auto_chains_and_writes_result(self):
+        self.make_task("BRIDGE-0901")                 # -> WAITING_FOR_HANDOFF
+        self.cli("run", "start", "BRIDGE-0901", "--actor", "x")   # -> RUNNING + Heartbeat
+        self.start()
+        with mock.patch.object(importer, "collect_git_info", self._git_stub):
+            code, data = self.post_json(
+                "/api/run/BRIDGE-0901/finish",
+                {"actor": "human", "confirm": True, "status": "COMPLETED",
+                 "summary": "Web-Abschluss Testlauf"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(data["run_id"], "RUN-01")
+        # BRIDGE-014 Auto-Chain, exakt wie beim CLI:
+        self.assertEqual(self.status_of("BRIDGE-0901"), "WAITING_FOR_COPY_TO_CONTROL")
+        self.assertTrue((self.tmp / "results" / "BRIDGE-0901" / "RUN-01"
+                         / "result.yaml").exists())
+
+    def test_finish_without_summary_is_400(self):
+        self.make_task("BRIDGE-0901", "RUNNING")
+        self.start()
+        code, _ = self.post_json("/api/run/BRIDGE-0901/finish",
+                                 {"actor": "h", "confirm": True,
+                                  "status": "COMPLETED", "summary": "  "})
+        self.assertEqual(code, 400)
+        self.assertEqual(self.status_of("BRIDGE-0901"), "RUNNING")
+
+    def test_finish_disallowed_status_is_409(self):
+        self.make_task("BRIDGE-0901", "RUNNING")
+        self.start()
+        code, data = self.post_json("/api/run/BRIDGE-0901/finish",
+                                    {"actor": "h", "confirm": True,
+                                     "status": "READY", "summary": "x"})
+        self.assertEqual(code, 409)
+        self.assertEqual(self.status_of("BRIDGE-0901"), "RUNNING")
+
+    # -- payload: Buttons nur fuer zulaessige Uebergaenge --------
+
+    def test_board_payload_lists_allowed_actions_only(self):
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self.make_task("BRIDGE-0902", "RUNNING")
+        self.start()
+        data = json.loads(self.get("/api/board")[1])
+        by_id = {r["bridge_task_id"]: r["actions"]
+                 for r in data["board"] + data["other"]}
+        # WAITING_FOR_COPY_TO_CONTROL -> REVIEW_REQUIRED (copied) und -> ARCHIVED
+        # sind laut state-model.yaml beide erlaubt; kein finish (nicht RUNNING).
+        self.assertEqual(by_id["BRIDGE-0901"], ["copied", "archive"])
+        # RUNNING -> ARCHIVED ist NICHT erlaubt, nur finish.
+        self.assertEqual(by_id["BRIDGE-0902"], ["finish"])
+
+    def test_cli_task_copied_still_works(self):
+        # Regression: bestehendes CLI-Verhalten unveraendert.
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        code, out, _ = self.cli("task", "copied", "BRIDGE-0901", "--actor", "h")
+        self.assertEqual(code, 0)
+        self.assertIn("REVIEW_REQUIRED", out)
+        self.assertEqual(self.status_of("BRIDGE-0901"), "REVIEW_REQUIRED")
 
 
 class WebUiCliTests(WebUiBase):
