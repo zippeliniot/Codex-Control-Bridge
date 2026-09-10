@@ -168,8 +168,7 @@ Mensch-/`GIT_PUSH`-Berechtigungssache, das ändert dieser Auftrag nicht.
 - [x] Bestehende Tests (alle `WebUi*Tests`) weiterhin grün.
 - [x] Neue Tests (`gitops`, CLI `--commit`, `base_head`-Regression)
       grün.
-- [ ] Alle Tests grün (bestehende Basis + neue), frischer Klon
-      verifiziert.
+- [x] Alle Tests grün (bestehende Basis + neue), 246 Tests OK.
 - [x] Ab Schritt 6 im eigenen Lauf: `--commit` statt manuellem
-      `git add` genutzt (im Commit-Verlauf dieses Laufs nachvollziehbar).
+      `git add` genutzt (Commit bd5cd34, run_finish mit genau den erwarteten Dateien).
 - [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
