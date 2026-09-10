@@ -1,0 +1,37 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0025
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: 8cd0908cc4d09e6c280d07c8d2b1ed8121492cfb
+executor: claude-code
+started_at: '2026-09-10T12:51:48Z'
+ended_at: '2026-09-10T12:51:59Z'
+created_by: claude-code@unknown
+base_head: 171eb14
+commits:
+- sha: 5cb5312986a98bcbbdd1cc7a364f60037a0a0c2b
+  message: 'BRIDGE-025: Work-Package spezifiziert (CLI-Commit-Haertung)'
+- sha: 8cd0908cc4d09e6c280d07c8d2b1ed8121492cfb
+  message: 'BRIDGE-025: gitops.py, --commit-Flag (5 Subcommands), base_head fail-closed'
+changed_files:
+- audit/audit.jsonl
+- docs/CCB-STEUERCHAT-ARBEITSWEISE.md
+- docs/security/SECURITY-MODEL.md
+- results/BRIDGE-0025/RUN-01/heartbeat.json
+- src/bridge/cli.py
+- src/bridge/gitops.py
+- src/bridge/webui.py
+- tasks/BRIDGE-0025/task.yaml
+- tests/test_cli.py
+- tests/test_gitops.py
+- tests/test_importer.py
+- tests/test_runner.py
+- work-packages/BRIDGE-025.md
+summary: 'CLI haertet Commits: gitops.py als gemeinsames Modul (Web-UI + CLI), --commit-Flag
+  auf 5 Subcommands (lokal, kein Push), base_head wird bei fehlendem Flag automatisch
+  aus task.yaml.git.expected_head abgeleitet statt still auf letzten Commit zu degradieren
+  (fail-closed sonst). Behebt die changed_files- und fehlende-Datei-Bugs aus BRIDGE-023/024.'
