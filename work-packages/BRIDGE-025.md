@@ -171,4 +171,4 @@ Mensch-/`GIT_PUSH`-Berechtigungssache, das ändert dieser Auftrag nicht.
 - [x] Alle Tests grün (bestehende Basis + neue), 246 Tests OK.
 - [x] Ab Schritt 6 im eigenen Lauf: `--commit` statt manuellem
       `git add` genutzt (Commit bd5cd34, run_finish mit genau den erwarteten Dateien).
-- [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
+- [x] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
