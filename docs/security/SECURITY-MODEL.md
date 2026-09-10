@@ -108,6 +108,49 @@ Bedienschicht über den bereits abgesicherten Store-/Runner-Funktionen.
     derselben Fehlermeldung wie im CLI abgelehnt (nicht stillschweigend
     ignoriert).
 
+### 5b. Web-UI: Git-Commit und Push nach Aktionen (BRIDGE-024)
+
+Ab BRIDGE-024 führt die Web-UI nach jeder erfolgreichen Aktion
+(`copied`, `archive`, `finish`) automatisch `git commit` und `git push`
+aus. Dies ist eine neue Fähigkeitsklasse für die Web-UI (bisher nur
+dateibasierte Store-Operationen, jetzt zusätzlich Subprozesse). Die
+folgende Entscheidung ist bewusst getroffen und hier dokumentiert.
+
+**Nutzerentscheidung (bestätigt):** Kein zusätzliches Freigabewort/Token
+über die bestehende `confirm`+`actor`+Same-Origin-Pflicht hinaus. Die
+bereits vorhandene dreifache Absicherung wird als ausreichend bewertet.
+
+**Nicht verhandelbare Leitplanken:**
+
+- **`--force` und `--force-with-lease` sind kategorisch verboten** — auch
+  hier, wie überall sonst im Projekt. Hart im Code verankert
+  (`_git_commit_and_push` in `webui.py`), kein konfigurierter Pfad, der
+  es aktivieren könnte (grep-bar verifizierbar).
+- **Branch-Prüfung:** Vor jedem Commit prüft `git rev-parse
+  --abbrev-ref HEAD`; weicht der Branch von `main` ab, bricht die
+  Funktion mit Klartext-Fehler ab (fail-closed, analog Abschnitt 4).
+- **Datei-Whitelist (fail-closed):** Es wird niemals `git add -A`
+  verwendet. Stattdessen gibt `_expected_git_files(kind, task_id, run_id)`
+  für jede Aktion die erlaubten Pfade zurück:
+  - `copied`/`archive`: `tasks/<id>/task.yaml`, `audit/audit.jsonl`
+  - `finish`: zusätzlich alles unter `results/<id>/<run_id>/` und
+    `work-packages/<id>.md`
+
+  Zeigt `git status --porcelain` irgendetwas außerhalb dieser Liste, wird
+  **kein** `git add` ausgeführt und der Commit wird abgebrochen — kein
+  Teil-Commit, keine stille Ignorierung.
+
+- **Kein automatisches Konfliktlösen:** Schlägt `git push` fehl (z. B.
+  non-fast-forward), wird der Fehler 1:1 an die UI zurückgemeldet
+  (`pushed: false` + Klartext). Kein automatisches `pull --rebase`, kein
+  `--force`, keine Wiederholung.
+
+- **Store-Erfolg und Git-Fehler werden getrennt gemeldet:** Schlägt der
+  Git-Teil fehl, bleibt die Store-Aktion (bereits erfolgreich) bestehen.
+  Die Antwort enthält immer ein `git`-Objekt
+  (`committed`, `commit`, `pushed`, `error`). Kein „alles ok", wenn nur
+  der Store-Teil geklappt hat.
+
 ## 6. Grenzen der ersten Version (Nicht-Ziele)
 
 Zunächst ausdrücklich **nicht** vorgesehen:

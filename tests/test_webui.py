@@ -540,5 +540,253 @@ class WebUiCliTests(WebUiBase):
         self.assertEqual(code, 2)  # unbekanntes Flag -> Nutzungsfehler
 
 
+class WebUiGitActionTests(WebUiBase):
+    """BRIDGE-024: Web-UI fuehrt nach copied/archive/finish selbst git commit+push aus.
+
+    Testaufbau: echtes temporaeres Git-Repo (= Store-Root) plus lokales bare
+    Repo als Test-'origin'. Kein github.com-Zugriff in Tests.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.bare_tmp = Path(tempfile.mkdtemp(prefix="ccb-webui-bare-"))
+        self._setup_git_repos()
+
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.bare_tmp, ignore_errors=True)
+
+    # -- Git-Hilfen ---------------------------------------------------------
+
+    def _git(self, *args, cwd=None, check=True):
+        result = subprocess.run(
+            ["git", *args],
+            cwd=cwd or self.tmp,
+            capture_output=True, text=True, encoding="utf-8", timeout=30,
+        )
+        if check and result.returncode != 0:
+            raise AssertionError(
+                f"git {' '.join(args)} fehlgeschlagen (rc={result.returncode}): "
+                f"{result.stderr.strip() or result.stdout.strip()}"
+            )
+        return result
+
+    def _commit_count(self, cwd=None):
+        r = self._git("log", "--oneline", cwd=cwd or self.tmp, check=False)
+        return len([l for l in r.stdout.splitlines() if l.strip()])
+
+    def _last_commit_msg(self, cwd=None):
+        r = self._git("log", "-1", "--format=%s", cwd=cwd or self.tmp)
+        return r.stdout.strip()
+
+    def _bare_head_sha(self):
+        """Gibt den aktuellen HEAD-SHA des bare-Repos zurueck (vollstaendig)."""
+        r = subprocess.run(
+            ["git", "rev-parse", "main"],
+            cwd=self.bare_tmp, capture_output=True, text=True,
+            encoding="utf-8", timeout=30,
+        )
+        if r.returncode != 0:
+            return None
+        return r.stdout.strip()
+
+    def _working_head_sha(self):
+        """Gibt den aktuellen HEAD-SHA des Arbeits-Repos zurueck (vollstaendig)."""
+        r = self._git("rev-parse", "HEAD")
+        return r.stdout.strip()
+
+    def _setup_git_repos(self):
+        """Initialisiert self.tmp als Git-Repo und self.bare_tmp als bare origin."""
+        self._git("init")
+        # Sicherstellen, dass der Branch 'main' heisst (auch auf aelteren Git-Versionen).
+        self._git("branch", "-M", "main", check=False)
+        self._git("symbolic-ref", "HEAD", "refs/heads/main", check=False)
+        self._git("config", "user.email", "test@example.com")
+        self._git("config", "user.name", "CCB Test")
+
+        # Initialer Commit, damit das Repo gueltig ist (mind. 1 Commit benoetigt).
+        gitkeep = self.tmp / ".gitkeep"
+        gitkeep.write_text("", encoding="utf-8")
+        self._git("add", ".gitkeep")
+        self._git("commit", "-m", "Initial commit")
+
+        # Bare-Repo als 'origin' einrichten und initialen Stand pushen.
+        self._git("init", "--bare", str(self.bare_tmp))
+        self._git("remote", "add", "origin", str(self.bare_tmp))
+        self._git("push", "-u", "origin", "main")
+
+    def _git_stub(self, root=None, base_head=None):
+        """Stub fuer importer.collect_git_info (kein echter Git-Aufruf im Importer)."""
+        return {"repository": "R", "branch": "b", "head": "a" * 40,
+                "base_head": base_head, "commits": [], "changed_files": []}
+
+    def _stage_and_push_initial_task(self, task_id):
+        """Initialen Task-Stand committen und pushen (vor der Aktion).
+
+        Schliesst die temporaere Staging-YAML-Datei von make_task() in den
+        Commit ein, damit sie nicht als unerwartete Aenderung beim
+        git-Status auftaucht.
+        """
+        task_dir = self.tmp / "tasks" / task_id
+        audit_file = self.tmp / "audit" / "audit.jsonl"
+        # Staging-YAML (von make_task): liegt direkt im Repo-Root.
+        staging_yaml = self.tmp / f"{task_id}.yaml"
+
+        paths = []
+        if task_dir.exists():
+            paths.append(str(task_dir))
+        if audit_file.exists():
+            paths.append(str(audit_file))
+        if staging_yaml.exists():
+            paths.append(str(staging_yaml))
+
+        if paths:
+            self._git("add", *paths)
+        self._git("commit", "--allow-empty", "-m", f"Add {task_id} initial state")
+        self._git("push")
+
+    # -- Erfolgspfad --------------------------------------------------------
+
+    def test_copied_commits_and_pushes(self):
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self._stage_and_push_initial_task("BRIDGE-0901")
+        bare_sha_before = self._bare_head_sha()
+
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/copied",
+                                    {"actor": "human", "confirm": True})
+        self.assertEqual(code, 200, data)
+        self.assertIn("git", data)
+        git = data["git"]
+        self.assertTrue(git["committed"], git)
+        self.assertIsNotNone(git["commit"])
+        self.assertTrue(git["pushed"], git)
+        self.assertIsNone(git["error"])
+
+        # Bare-Repo muss den neuen Commit enthalten (working HEAD == bare HEAD).
+        bare_sha_after = self._bare_head_sha()
+        working_sha = self._working_head_sha()
+        self.assertEqual(bare_sha_after, working_sha,
+                         "Push fehlgeschlagen: bare-Repo hat nicht den neuen Commit")
+        self.assertNotEqual(bare_sha_after, bare_sha_before,
+                            "Keine Aenderung im bare-Repo erkannt")
+        # Commit-Nachricht korrekt.
+        msg = self._last_commit_msg()
+        self.assertIn("BRIDGE-0901", msg)
+        self.assertIn("copied", msg)
+
+    def test_archive_commits_and_pushes(self):
+        self.make_task("BRIDGE-0901", "REVIEW_REQUIRED")
+        self._stage_and_push_initial_task("BRIDGE-0901")
+        bare_sha_before = self._bare_head_sha()
+
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/archive",
+                                    {"actor": "human", "confirm": True,
+                                     "reason": "Test fertig"})
+        self.assertEqual(code, 200, data)
+        self.assertIn("git", data)
+        git = data["git"]
+        self.assertTrue(git["committed"], git)
+        self.assertTrue(git["pushed"], git)
+        self.assertIsNone(git["error"])
+
+        bare_sha_after = self._bare_head_sha()
+        working_sha = self._working_head_sha()
+        self.assertEqual(bare_sha_after, working_sha)
+        self.assertNotEqual(bare_sha_after, bare_sha_before)
+
+    def test_finish_commits_and_pushes(self):
+        self.make_task("BRIDGE-0901")
+        self.cli("run", "start", "BRIDGE-0901", "--actor", "x")
+        self._stage_and_push_initial_task("BRIDGE-0901")
+        bare_sha_before = self._bare_head_sha()
+
+        self.start()
+        with mock.patch.object(importer, "collect_git_info", self._git_stub):
+            code, data = self.post_json(
+                "/api/run/BRIDGE-0901/finish",
+                {"actor": "human", "confirm": True,
+                 "status": "COMPLETED", "summary": "Test-Abschluss"})
+        self.assertEqual(code, 200, data)
+        self.assertIn("git", data)
+        git = data["git"]
+        self.assertTrue(git["committed"], git)
+        self.assertTrue(git["pushed"], git)
+        self.assertIsNone(git["error"])
+
+        bare_sha_after = self._bare_head_sha()
+        working_sha = self._working_head_sha()
+        self.assertEqual(bare_sha_after, working_sha)
+        self.assertNotEqual(bare_sha_after, bare_sha_before)
+        msg = self._last_commit_msg()
+        self.assertIn("BRIDGE-0901", msg)
+        self.assertIn("finish", msg)
+
+    # -- Fail-closed-Fall: unerwartete Datei blockiert Commit ---------------
+
+    def test_fail_closed_unexpected_file_blocks_commit(self):
+        """Eine Datei ausserhalb der Whitelist → kein Commit, Store-Aktion trotzdem OK."""
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self._stage_and_push_initial_task("BRIDGE-0901")
+
+        # Unerwartete Datei anlegen (nicht in der Whitelist fuer 'copied').
+        unexpected = self.tmp / "unexpected.txt"
+        unexpected.write_text("nicht in der whitelist", encoding="utf-8")
+
+        before_local = self._commit_count()
+
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/copied",
+                                    {"actor": "human", "confirm": True})
+        # Store-Aktion hat geklappt (HTTP 200), aber git hat abgebrochen.
+        self.assertEqual(code, 200, data)
+        self.assertIn("git", data)
+        git = data["git"]
+        self.assertFalse(git["committed"], git)
+        self.assertFalse(git["pushed"], git)
+        self.assertIsNotNone(git["error"])
+        # Fehlertext muss unerwartete Datei nennen.
+        self.assertIn("unexpected.txt", git["error"])
+
+        # Kein neuer Commit darf entstanden sein (per git log verifiziert).
+        after_local = self._commit_count()
+        self.assertEqual(after_local, before_local,
+                         "Kein Commit erlaubt, wenn Whitelist-Pruefung schlaegt fehl")
+
+    # -- Push-Fehlschlag: Commit lokal vorhanden, aber nicht gepusht --------
+
+    def test_push_failure_commit_stays_local(self):
+        """Divergiertes bare-Repo → Commit bleibt lokal, pushed=false, kein Crash."""
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self._stage_and_push_initial_task("BRIDGE-0901")
+
+        # Push-Fehlschlag erzwingen: origin-Remote-URL auf nicht-existierenden Pfad setzen.
+        # git push wird dann mit "repository not found" oder aehnlichem fehlschlagen.
+        # Das genuegt laut Spec ('z. B. non-fast-forward') fuer den Test.
+        self._git("remote", "set-url", "origin", "/nonexistent/path/to/nowhere")
+
+        local_before = self._commit_count()
+
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/copied",
+                                    {"actor": "human", "confirm": True})
+        self.assertEqual(code, 200, data)
+        self.assertIn("git", data)
+        git = data["git"]
+        # Commit ist lokal entstanden, Push hat fehlgeschlagen.
+        self.assertTrue(git["committed"], git)
+        self.assertIsNotNone(git["commit"])
+        self.assertFalse(git["pushed"], git)
+        self.assertIsNotNone(git["error"])
+        # Fehlertext nennt den Push-Fehler.
+        self.assertIn("push", git["error"].lower())
+
+        # Lokaler Commit ist vorhanden (eine mehr als davor),
+        # kein Crash, kein automatischer Retry.
+        local_after = self._commit_count()
+        self.assertEqual(local_after, local_before + 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -34,6 +34,7 @@ entsteht automatisch in ``store.set_status`` / ``runner.finish``).
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -56,6 +57,9 @@ HOST = "127.0.0.1"          # HART. Nicht konfigurierbar. Siehe Modulkopf.
 DEFAULT_PORT = 8420
 REFRESH_SECONDS = 15         # gleicher Standard wie `bridge board --watch --interval`
 
+_GIT_TIMEOUT = 30            # Sekunden, Timeout fuer lokale git-Kommandos
+_GIT_PUSH_TIMEOUT = 60       # Sekunden, Timeout fuer git push (Netz)
+
 # Ziele, die `runner.finish` aus RUNNING laut state-model.yaml zulaesst.
 _FINISH_TARGETS = ("COMPLETED", "FAILED", "BLOCKED", "REVIEW_REQUIRED",
                    "APPROVAL_REQUIRED")
@@ -67,6 +71,129 @@ _BOARD_FIELDS = ("bridge_task_id", "projekt", "fuehrung", "richtung",
 _ENGINE_ERRORS = (StoreError, state_machine.TransitionError,
                   state_machine.ModelError, runner.RunnerError,
                   importer.ImporterError)
+
+
+# --------------------------------------------------------------------------- #
+# Git-Commit+Push (BRIDGE-024)
+# --------------------------------------------------------------------------- #
+
+def _expected_git_files(kind: str, task_id: str,
+                        run_id: str | None = None) -> list[str]:
+    """Erlaubte Datei-Whitelist pro Aktionstyp.
+
+    Eintraege ohne abschliessendes '/' sind exakte Pfade; Eintraege mit '/'
+    sind Praefix-Matches (alles darunter ist erlaubt).
+    """
+    base = [f"tasks/{task_id}/task.yaml", "audit/audit.jsonl"]
+    if kind == "finish" and run_id:
+        # Alles unter dem Lauf-Verzeichnis (result.yaml, heartbeat.json, ...)
+        base.append(f"results/{task_id}/{run_id}/")
+        # Work-Package wird ggf. mit Checkbox-Aenderungen commitet
+        base.append(f"work-packages/{task_id}.md")
+    return base
+
+
+def _matches_whitelist(path: str, whitelist: list[str]) -> bool:
+    """True, wenn ``path`` exakt oder als Praefix (Eintrag endet mit '/') passt."""
+    for allowed in whitelist:
+        if allowed.endswith("/"):
+            if path.startswith(allowed):
+                return True
+        elif path == allowed:
+            return True
+    return False
+
+
+def _git_commit_and_push(repo_root, kind: str, task_id: str, actor: str,
+                          run_id: str | None = None) -> dict:
+    """Nach einer Store-Aktion: Branch pruefen, Whitelist pruefen,
+    nur die erwarteten Dateien stagen, committen, pushen.
+
+    Sicherheitsleitplanken (nicht verhandelbar, BRIDGE-024 Sicherheitsentscheid):
+    - ``--force``/``--force-with-lease`` kommt nicht vor.
+    - ``git add -A`` kommt nicht vor; nur konkrete Pfade werden gestaged.
+    - Branch muss ``main`` sein, sonst Abbruch.
+    - Unerwartete Aenderungen ausserhalb der Whitelist → Abbruch ohne Commit.
+
+    Gibt immer ein dict ``{committed, commit, pushed, error}`` zurueck.
+    Fehler im Git-Teil lassen die Store-Aktion unangetastet.
+    """
+    root = Path(repo_root)
+
+    def _run(args, timeout=_GIT_TIMEOUT):
+        return subprocess.run(
+            args, cwd=root, capture_output=True, text=True,
+            timeout=timeout, encoding="utf-8",
+        )
+
+    # 1. Branch-Pruefung — nur 'main' ist erlaubt.
+    r = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    if r.returncode != 0:
+        return {"committed": False, "commit": None, "pushed": False,
+                "error": f"git rev-parse fehlgeschlagen: {r.stderr.strip()}"}
+    branch = r.stdout.strip()
+    if branch != "main":
+        return {"committed": False, "commit": None, "pushed": False,
+                "error": (f"Branch-Pruefung fehlgeschlagen: aktueller Branch ist "
+                          f"'{branch}', erwartet 'main'.")}
+
+    # 2. git status --porcelain: alle geaenderten/unverfolgten Dateien ermitteln.
+    r = _run(["git", "status", "--porcelain", "--untracked-files=all"])
+    if r.returncode != 0:
+        return {"committed": False, "commit": None, "pushed": False,
+                "error": f"git status fehlgeschlagen: {r.stderr.strip()}"}
+
+    changed: list[str] = []
+    for line in r.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        path = line[3:]                    # 'XY ' prefix abschneiden
+        if " -> " in path:                 # Umbenennungen: nur Ziel nehmen
+            path = path.split(" -> ", 1)[1]
+        path = path.strip('"').replace("\\", "/").strip()
+        if path:
+            changed.append(path)
+
+    if not changed:
+        return {"committed": False, "commit": None, "pushed": False,
+                "error": "Keine Aenderungen vorhanden; kein Commit noetig."}
+
+    # 3. Whitelist-Pruefung: kein 'git add', wenn unerwartete Dateien da sind.
+    whitelist = _expected_git_files(kind, task_id, run_id)
+    unexpected = sorted(p for p in changed if not _matches_whitelist(p, whitelist))
+    if unexpected:
+        return {"committed": False, "commit": None, "pushed": False,
+                "error": (
+                    "Whitelist-Pruefung fehlgeschlagen — unerwartete Aenderungen: "
+                    + ", ".join(unexpected)
+                    + ". Kein git add ausgefuehrt, Commit abgebrochen."
+                )}
+
+    # 4. git add — ausschliesslich die konkret geaenderten Whitelisted-Dateien.
+    #    KEIN 'git add -A', KEIN 'git add .'.
+    r = _run(["git", "add", "--"] + changed)
+    if r.returncode != 0:
+        return {"committed": False, "commit": None, "pushed": False,
+                "error": f"git add fehlgeschlagen: {r.stderr.strip()}"}
+
+    # 5. git commit.
+    msg = f"Ops: {task_id} {kind} (Steuerchat-Aktion via Web-UI)"
+    r = _run(["git", "commit", "-m", msg])
+    if r.returncode != 0:
+        return {"committed": False, "commit": None, "pushed": False,
+                "error": f"git commit fehlgeschlagen: {r.stderr.strip()}"}
+
+    r_sha = _run(["git", "rev-parse", "--short", "HEAD"])
+    commit_sha = r_sha.stdout.strip() if r_sha.returncode == 0 else None
+
+    # 6. git push — NIEMALS --force oder --force-with-lease.
+    r = _run(["git", "push"], timeout=_GIT_PUSH_TIMEOUT)
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout).strip()
+        return {"committed": True, "commit": commit_sha, "pushed": False,
+                "error": f"git push fehlgeschlagen: {err}"}
+
+    return {"committed": True, "commit": commit_sha, "pushed": True, "error": None}
 
 
 # --------------------------------------------------------------------------- #
@@ -157,6 +284,12 @@ def _apply_action(store, kind: str, task_id: str, body: dict) -> dict:
     """Fuehrt eine der drei Aktionen aus. Prueft serverseitig die
     Bestaetigungspflicht (der Browser-Dialog allein reicht nicht) und ruft
     dann exakt die Funktion, die auch das CLI nutzt.
+
+    BRIDGE-024: Nach erfolgreicher Store-Aktion wird zusaetzlich
+    ``_git_commit_and_push`` aufgerufen. Das Ergebnis des Git-Teils ist
+    immer im Antwort-JSON unter ``git`` enthalten. Store-Erfolg und
+    Git-Fehler koennen gleichzeitig auftreten — die Antwort verschleiert
+    nichts.
     """
     if body.get("confirm") is not True:
         raise _BadRequest("Bestaetigung fehlt (confirm: true erforderlich).")
@@ -164,14 +297,18 @@ def _apply_action(store, kind: str, task_id: str, body: dict) -> dict:
 
     if kind == "copied":
         event = task_copied(store, task_id, actor)
+        git = _git_commit_and_push(store.root, kind, task_id, actor)
         return {"ok": True, "task": task_id, "old_state": event["old_state"],
-                "new_state": event["new_state"], "event_type": event["event_type"]}
+                "new_state": event["new_state"], "event_type": event["event_type"],
+                "git": git}
 
     if kind == "archive":
         reason = body.get("reason") or None
         event = task_archive(store, task_id, actor, reason)
+        git = _git_commit_and_push(store.root, kind, task_id, actor)
         return {"ok": True, "task": task_id, "old_state": event["old_state"],
-                "new_state": event["new_state"], "event_type": event["event_type"]}
+                "new_state": event["new_state"], "event_type": event["event_type"],
+                "git": git}
 
     if kind == "finish":
         status = _require(body, "status")
@@ -179,9 +316,12 @@ def _apply_action(store, kind: str, task_id: str, body: dict) -> dict:
         result, event = runner.finish(
             store, task_id, status,
             draft={}, base_head=None, actor=actor, machine=None, summary=summary)
-        return {"ok": True, "task": task_id, "run_id": result["run_id"],
+        run_id = result["run_id"]
+        git = _git_commit_and_push(store.root, kind, task_id, actor, run_id=run_id)
+        return {"ok": True, "task": task_id, "run_id": run_id,
                 "old_state": event["old_state"], "new_state": event["new_state"],
-                "event_type": event["event_type"]}
+                "event_type": event["event_type"],
+                "git": git}
 
     raise _BadRequest(f"Unbekannte Aktion: {kind}")
 
@@ -403,7 +543,19 @@ async function post(kind, id) {
       addLog(kind, id, false, msg);
     } else {
       flash("OK: " + id + " " + data.old_state + " → " + data.new_state, "ok");
-      addLog(kind, id, true, data.old_state + " → " + data.new_state);
+      // Git-Ergebnis (BRIDGE-024): committed/pushed-Status im Log-Eintrag anzeigen.
+      let gitText = "";
+      if (data.git) {
+        if (data.git.committed && data.git.pushed) {
+          gitText = " → committed " + (data.git.commit || "?") + ", gepusht";
+        } else if (data.git.committed) {
+          gitText = " → committed " + (data.git.commit || "?")
+            + ", Push fehlgeschlagen: " + (data.git.error || "?");
+        } else if (data.git.error) {
+          gitText = " → Git-Fehler: " + data.git.error;
+        }
+      }
+      addLog(kind, id, true, data.old_state + " → " + data.new_state + gitText);
     }
   } catch (e) {
     flash("Netzwerkfehler: " + e.message, "err");
