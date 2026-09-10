@@ -21,3 +21,5 @@ node_modules/
 # (bewusst NICHT ignoriert: tasks/, results/, runs/, state/, logs/ — SSOT im Repo)
 *.log.local
 *.tmp
+
+tasks/incoming/
