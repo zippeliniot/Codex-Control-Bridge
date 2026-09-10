@@ -33,6 +33,6 @@ acceptance_criteria:
 - Neue Tests (WebUiGitActionTests) gruen inkl. Fail-closed- und Push-Fehlschlag-Fall
 - Alle Tests gruen (bestehende Basis + neue), frischer Klon verifiziert
 - Commit gepusht (GIT_PUSH-Berechtigung im Profil)
-status: RUNNING
+status: WAITING_FOR_COPY_TO_CONTROL
 created_at: '2026-09-10T00:00:00Z'
 created_by: browser-claude
