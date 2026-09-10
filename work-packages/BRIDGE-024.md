@@ -175,4 +175,4 @@ obigen Nutzerentscheidung:
 - [x] Neue Tests (`WebUiGitActionTests`) grün, inkl. Fail-closed- und
       Push-Fehlschlag-Fall.
 - [x] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
-- [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
+- [x] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
