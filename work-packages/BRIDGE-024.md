@@ -152,27 +152,27 @@ obigen Nutzerentscheidung:
 
 ## Akzeptanzkriterien
 
-- [ ] `git status --porcelain` wird vor jedem Commit gegen eine feste
+- [x] `git status --porcelain` wird vor jedem Commit gegen eine feste
       Datei-Whitelist pro Aktionstyp geprüft; unerwartete Änderungen blocken
       den Commit vollständig (kein Teil-Commit).
-- [ ] Branch-Prüfung: Commit/Push nur auf `main`, sonst Abbruch mit
+- [x] Branch-Prüfung: Commit/Push nur auf `main`, sonst Abbruch mit
       Klartext-Fehler.
-- [ ] `--force`/`--force-with-lease` kommt im gesamten neuen Code nicht vor
+- [x] `--force`/`--force-with-lease` kommt im gesamten neuen Code nicht vor
       (grep-bar, kein bedingter Pfad, der es aktivieren könnte).
-- [ ] Erfolgreiche Aktion erzeugt genau einen Commit mit genau den
+- [x] Erfolgreiche Aktion erzeugt genau einen Commit mit genau den
       erwarteten Dateien und pusht ihn (im Test gegen ein lokales bare
       Repo verifiziert, kein echter `github.com`-Zugriff in Tests).
-- [ ] Push-Fehlschlag wird transparent gemeldet (`pushed: false` +
+- [x] Push-Fehlschlag wird transparent gemeldet (`pushed: false` +
       Fehlertext), ohne Crash, ohne automatischen Retry, ohne `--force`.
-- [ ] Store-Erfolg und Git-Fehler werden getrennt und wahrheitsgemäß
+- [x] Store-Erfolg und Git-Fehler werden getrennt und wahrheitsgemäß
       gemeldet (kein „alles ok", wenn nur der Store-Teil geklappt hat).
-- [ ] Persistenter Aktions-Log (BRIDGE-023) zeigt das Git-Ergebnis pro
+- [x] Persistenter Aktions-Log (BRIDGE-023) zeigt das Git-Ergebnis pro
       Eintrag.
-- [ ] `SECURITY-MODEL.md` Abschnitt 5a um die neue Fähigkeit, die
-      Whitelist-Prüfung und das Force-Push-Verbot erweitert.
-- [ ] Bestehende Tests (`WebUiReadTests`, `WebUiActionTests`,
+- [x] `SECURITY-MODEL.md` Abschnitt 5b (neu, nach 5a) um die neue Fähigkeit,
+      die Whitelist-Prüfung und das Force-Push-Verbot erweitert.
+- [x] Bestehende Tests (`WebUiReadTests`, `WebUiActionTests`,
       `WebUiCliTests`, `WebUiFrontendTests`) weiterhin grün.
-- [ ] Neue Tests (`WebUiGitActionTests`) grün, inkl. Fail-closed- und
+- [x] Neue Tests (`WebUiGitActionTests`) grün, inkl. Fail-closed- und
       Push-Fehlschlag-Fall.
-- [ ] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
+- [x] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
 - [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).
