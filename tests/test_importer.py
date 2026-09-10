@@ -187,7 +187,8 @@ class ImporterTests(unittest.TestCase):
     def test_cli_import_completed(self):
         with mock.patch.object(importer, "collect_git_info", git_stub):
             code, out, err = self.cli("result", "import", "BRIDGE-0900",
-                                      "--status", "COMPLETED")
+                                      "--status", "COMPLETED",
+                                      "--base-head", "a" * 40)
         self.assertEqual(code, 0, err)
         self.assertIn("RUN-01", out)
         self.assertTrue((self.tmp / "results" / "BRIDGE-0900" / "RUN-01"

@@ -2,7 +2,8 @@
 
 Reine stdlib. Wiederverwendung von src/bridge/store.py und
 src/bridge/state_machine.py - die Engine wird genutzt, nicht dupliziert.
-Exit-Codes: 0 = OK, 1 = Fachfehler/fail-closed, 2 = Nutzungsfehler.
+Exit-Codes: 0 = OK, 1 = Fachfehler/fail-closed, 2 = Nutzungsfehler,
+            3 = Git-Whitelist- oder Branch-Fehler bei --commit.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from bridge import heartbeat, importer, profiles, registry, runner, state_machine, watcher
+from bridge import gitops, heartbeat, importer, profiles, registry, runner, state_machine, watcher
 from bridge.store import Store, StoreError
 
 _ENGINE_ERRORS = (StoreError, state_machine.TransitionError, state_machine.ModelError,
@@ -45,18 +46,25 @@ def _build_parser() -> argparse.ArgumentParser:
 
     task = sub.add_parser("task", help="Aufträge verwalten")
     tsub = task.add_subparsers(dest="task_cmd", required=True)
-    tsub.add_parser("create", help="Auftrag anlegen").add_argument("path")
+    tcreate = tsub.add_parser("create", help="Auftrag anlegen")
+    tcreate.add_argument("path")
+    tcreate.add_argument("--commit", action="store_true",
+                         help="nach erfolgreichem Anlegen lokal committen (kein Push, Exit 3 bei Fehler)")
     tsub.add_parser("show", help="Status + Kernfelder").add_argument("task_id")
     tsub.add_parser("list", help="alle Aufträge mit Status")
     tcopied = tsub.add_parser(
         "copied", help="Ergebnis wurde in den Steuerchat kopiert (-> REVIEW_REQUIRED)")
     tcopied.add_argument("task_id")
     tcopied.add_argument("--actor", required=True)
+    tcopied.add_argument("--commit", action="store_true",
+                         help="nach erfolgreichem Uebergang lokal committen (kein Push, Exit 3 bei Fehler)")
     tarchive = tsub.add_parser(
         "archive", help="Auftrag abschliessen (-> ARCHIVED)")
     tarchive.add_argument("task_id")
     tarchive.add_argument("--actor", required=True)
     tarchive.add_argument("--reason", default=None)
+    tarchive.add_argument("--commit", action="store_true",
+                          help="nach erfolgreichem Uebergang lokal committen (kein Push, Exit 3 bei Fehler)")
     tset = tsub.add_parser("set-status", help="Zustandswechsel")
     tset.add_argument("task_id")
     tset.add_argument("new_state")
@@ -150,6 +158,8 @@ def _build_parser() -> argparse.ArgumentParser:
     rstart.add_argument("task_id")
     rstart.add_argument("--actor", required=True)
     rstart.add_argument("--machine")
+    rstart.add_argument("--commit", action="store_true",
+                        help="nach erfolgreichem Start lokal committen (kein Push, Exit 3 bei Fehler)")
 
     rbeat = runsub.add_parser("beat", help="Heartbeat des aktuellen Laufs aktualisieren")
     rbeat.add_argument("task_id")
@@ -161,10 +171,14 @@ def _build_parser() -> argparse.ArgumentParser:
     rfin.add_argument("task_id")
     rfin.add_argument("--status", required=True)
     rfin.add_argument("--from", dest="draft_path", help="Entwurf (draft.yaml)")
-    rfin.add_argument("--base-head", help="HEAD-SHA zu Laufbeginn")
+    rfin.add_argument("--base-head",
+                      help="HEAD-SHA zu Laufbeginn; fehlt er, wird git.expected_head "
+                           "aus task.yaml abgeleitet (fail-closed wenn auch das fehlt)")
     rfin.add_argument("--actor", required=True)
     rfin.add_argument("--machine")
     rfin.add_argument("--summary")
+    rfin.add_argument("--commit", action="store_true",
+                      help="nach erfolgreichem Abschluss lokal committen (kein Push, Exit 3 bei Fehler)")
 
     rres = runsub.add_parser("resume", help="Lauf wiederaufnehmen (-> RUNNING, neuer RUN)")
     rres.add_argument("task_id")
@@ -177,6 +191,28 @@ def _build_parser() -> argparse.ArgumentParser:
     psub.add_parser("show", help="Kernfelder eines Profils").add_argument("project_id")
     psub.add_parser("validate", help="Profil gegen Schema prüfen").add_argument("path")
     return parser
+
+
+# --------------------------------------------------------------------------- #
+# Helfer fuer --commit (BRIDGE-025)
+# --------------------------------------------------------------------------- #
+
+def _do_commit(args, store, kind: str, task_id: str, actor: str,
+               run_id: str | None = None) -> int:
+    """Fuehrt nach einer erfolgreichen Store-Aktion einen lokalen Commit aus.
+
+    Rueckgabe: 0 bei Erfolg, 3 bei Git-Whitelist- oder Branch-Fehler.
+    Kein Push (push=False) - Push bleibt Mensch-/GIT_PUSH-Sache.
+    """
+    git = gitops.git_commit(store.root, kind, task_id, actor,
+                            run_id=run_id, push=False, source="CLI")
+    if git["error"]:
+        print(f"Git-Fehler (--commit): {git['error']}", file=sys.stderr)
+        print("Store-Aktion war erfolgreich; nur der Commit schlug fehl.", file=sys.stderr)
+        return 3
+    sha = git.get("commit") or "(unbekannt)"
+    print(f"  -> Commit {sha} (lokal, kein Push)")
+    return 0
 
 
 # --------------------------------------------------------------------------- #
@@ -230,6 +266,10 @@ def _cmd_task(args, store) -> int:
                                  actor, None,
                                  reason="auto: wartet auf Weitergabe an Executor")
         print(f"OK: {task_id} angelegt (status={event['new_state']})")
+        if getattr(args, "commit", False):
+            rc = _do_commit(args, store, "task_create", task_id, actor)
+            if rc != 0:
+                return rc
         return 0
     if args.task_cmd == "show":
         task = store.load_task(args.task_id)
@@ -249,11 +289,19 @@ def _cmd_task(args, store) -> int:
         event = task_copied(store, args.task_id, args.actor)
         print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']} "
               f"({event['event_type']})")
+        if getattr(args, "commit", False):
+            rc = _do_commit(args, store, "task_copied", args.task_id, args.actor)
+            if rc != 0:
+                return rc
         return 0
     if args.task_cmd == "archive":
         event = task_archive(store, args.task_id, args.actor, args.reason)
         print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']} "
               f"({event['event_type']})")
+        if getattr(args, "commit", False):
+            rc = _do_commit(args, store, "task_archive", args.task_id, args.actor)
+            if rc != 0:
+                return rc
         return 0
     if args.task_cmd == "set-status":
         event = store.set_status(args.task_id, args.new_state, actor=args.actor,
@@ -279,9 +327,22 @@ def _cmd_result_import(args, store) -> int:
         print("Nutzungsfehler: --status fehlt (weder Flag noch Entwurf).",
               file=sys.stderr)
         return 2
+    # base_head-Fallback: gleiche Logik wie run finish (BRIDGE-025).
+    base_head = args.base_head
+    if base_head is None:
+        task = store.load_task(args.task_id)
+        base_head = (task.get("git") or {}).get("expected_head")
+        if base_head is None:
+            print(
+                f"Fehler: --base-head fehlt und git.expected_head ist nicht in "
+                f"task.yaml von {args.task_id} gesetzt. "
+                f"Bitte --base-head <SHA> explizit angeben (fail-closed).",
+                file=sys.stderr,
+            )
+            return 1
     result = importer.import_result(
         store, args.task_id, status,
-        run_id=args.run_id, draft=draft, base_head=args.base_head,
+        run_id=args.run_id, draft=draft, base_head=base_head,
         executor=args.executor, machine=args.machine,
         environment=args.environment, runtime=args.runtime,
         summary=args.summary, started_at=args.started_at,
@@ -627,6 +688,11 @@ def _cmd_run(args, store) -> int:
     if args.run_cmd == "start":
         run_id = runner.start(store, args.task_id, args.actor, args.machine)
         _print_run(store, args.task_id, run_id, "gestartet")
+        if getattr(args, "commit", False):
+            rc = _do_commit(args, store, "run_start", args.task_id, args.actor,
+                            run_id=run_id)
+            if rc != 0:
+                return rc
         return 0
     if args.run_cmd == "beat":
         doc = runner.beat(store, args.task_id, actor=args.actor, machine=args.machine)
@@ -634,13 +700,33 @@ def _cmd_run(args, store) -> int:
               f"last_seen={doc['last_seen']}")
         return 0
     if args.run_cmd == "finish":
+        # base_head-Fallback: wenn --base-head fehlt, aus task.yaml.git.expected_head
+        # ableiten (fail-closed wenn auch das fehlt — kein stiller Fallback auf
+        # "nur letzter Commit", BRIDGE-025).
+        base_head = args.base_head
+        if base_head is None:
+            task = store.load_task(args.task_id)
+            base_head = (task.get("git") or {}).get("expected_head")
+            if base_head is None:
+                print(
+                    f"Fehler: --base-head fehlt und git.expected_head ist nicht in "
+                    f"task.yaml von {args.task_id} gesetzt. "
+                    f"Bitte --base-head <SHA> explizit angeben (fail-closed).",
+                    file=sys.stderr,
+                )
+                return 1
         draft = importer.load_draft(args.draft_path) if args.draft_path else {}
         result, event = runner.finish(
             store, args.task_id, args.status,
-            draft=draft, base_head=args.base_head,
+            draft=draft, base_head=base_head,
             actor=args.actor, machine=args.machine, summary=args.summary)
         print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']}; "
               f"Ergebnis {result['run_id']} abgelegt")
+        if getattr(args, "commit", False):
+            rc = _do_commit(args, store, "run_finish", args.task_id, args.actor,
+                            run_id=result["run_id"])
+            if rc != 0:
+                return rc
         return 0
     if args.run_cmd == "resume":
         run_id = runner.resume(store, args.task_id, args.actor, args.machine)

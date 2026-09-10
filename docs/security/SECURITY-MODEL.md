@@ -151,6 +151,39 @@ bereits vorhandene dreifache Absicherung wird als ausreichend bewertet.
   (`committed`, `commit`, `pushed`, `error`). Kein „alles ok", wenn nur
   der Store-Teil geklappt hat.
 
+### 5c. CLI: --commit-Flag und base_head-Fail-closed (BRIDGE-025)
+
+Ab BRIDGE-025 kann die CLI nach einer erfolgreichen Store-Aktion optional
+lokal committen. Im Unterschied zur Web-UI (Abschnitt 5b) pusht die CLI
+**nicht** automatisch — Push bleibt laut `CLAUDE.md` Regel 4 grundsätzlich
+Mensch-/`GIT_PUSH`-Berechtigungssache.
+
+**`--commit`-Flag:** Vorhanden auf `task create`, `run start`, `run finish`,
+`task copied`, `task archive`. Nach erfolgreicher Store-Aktion werden
+ausschließlich die von der Store-Funktion tatsächlich geschriebenen Dateien
+per `gitops.git_commit(push=False)` committet. Dieselben Sicherheitsleitplanken
+wie in 5b gelten unverändert (Branch `main`, Datei-Whitelist fail-closed, kein
+Force-Push, kein `git add -A`). Bei Whitelist- oder Branch-Fehler: **Exit-Code 3**,
+Klartext-Fehler auf stderr — die Store-Aktion (bereits erfolgreich) wird nicht
+zurückgerollt.
+
+**Gemeinsames Modul `gitops.py`:** Die Whitelist-Logik lebt jetzt in
+`src/bridge/gitops.py` (Funktionen `expected_git_files`, `matches_whitelist`,
+`git_commit`). Web-UI und CLI teilen sich diese Implementierung — kein
+Parallel-Code.
+
+**`base_head` fail-closed (fix für BRIDGE-023/024-Bug):** Bei `run finish`
+und `result import` war `--base-head` bisher optional mit stillem Fallback
+auf `git diff-tree HEAD` (nur letzter Commit). Ab BRIDGE-025:
+
+1. Fehlt `--base-head`: wird `git.expected_head` aus `task.yaml` automatisch
+   verwendet (der SHA zum Zeitpunkt der Taskerstellung).
+2. Fehlt auch `git.expected_head`: **fail-closed** (Exit-Code 1, Klartext-Fehler),
+   kein stiller Fallback — analoog Abschnitt 4.
+
+Damit ist `changed_files` in `result.yaml` garantiert vollständig (alle Commits
+seit Taskerstellung, nicht nur der letzte).
+
 ## 6. Grenzen der ersten Version (Nicht-Ziele)
 
 Zunächst ausdrücklich **nicht** vorgesehen:

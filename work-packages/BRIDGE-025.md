@@ -148,28 +148,28 @@ Mensch-/`GIT_PUSH`-Berechtigungssache, das ändert dieser Auftrag nicht.
 
 ## Akzeptanzkriterien
 
-- [ ] `src/bridge/gitops.py` existiert, `webui.py` nutzt es (kein
+- [x] `src/bridge/gitops.py` existiert, `webui.py` nutzt es (kein
       Parallel-Code, bestehende `WebUiGitActionTests` unverändert grün).
-- [ ] `--commit`-Flag auf `task create`, `run start`, `run finish`,
+- [x] `--commit`-Flag auf `task create`, `run start`, `run finish`,
       `task copied`, `task archive` — committet lokal (kein Push),
       exakt die Whitelist-Dateien pro `kind`.
-- [ ] `--force`/`--force-with-lease` kommt im gesamten neuen/geänderten
+- [x] `--force`/`--force-with-lease` kommt im gesamten neuen/geänderten
       Code nicht vor (grep-bar).
-- [ ] Fehlt `--base-head` bei `run finish`, wird `git.expected_head` aus
+- [x] Fehlt `--base-head` bei `run finish`, wird `git.expected_head` aus
       `task.yaml` automatisch verwendet; fehlt auch das, fail-closed
       statt stillem Fallback.
-- [ ] Regressionstest stellt das BRIDGE-023/024-Szenario nach:
+- [x] Regressionstest stellt das BRIDGE-023/024-Szenario nach:
       `changed_files` deckt bei fehlendem `--base-head` trotzdem den
       **gesamten** Lauf ab.
-- [ ] Whitelist-Fehler bei `--commit` führt zu Exit-Code `3` und
+- [x] Whitelist-Fehler bei `--commit` führt zu Exit-Code `3` und
       Klartext-Fehler, Store-Aktion bleibt bestehen (kein Rollback).
-- [ ] `SECURITY-MODEL.md` und `CCB-STEUERCHAT-ARBEITSWEISE.md` um die
+- [x] `SECURITY-MODEL.md` und `CCB-STEUERCHAT-ARBEITSWEISE.md` um die
       neuen Mechanismen ergänzt.
-- [ ] Bestehende Tests (alle `WebUi*Tests`) weiterhin grün.
-- [ ] Neue Tests (`gitops`, CLI `--commit`, `base_head`-Regression)
+- [x] Bestehende Tests (alle `WebUi*Tests`) weiterhin grün.
+- [x] Neue Tests (`gitops`, CLI `--commit`, `base_head`-Regression)
       grün.
 - [ ] Alle Tests grün (bestehende Basis + neue), frischer Klon
       verifiziert.
-- [ ] Ab Schritt 6 im eigenen Lauf: `--commit` statt manuellem
+- [x] Ab Schritt 6 im eigenen Lauf: `--commit` statt manuellem
       `git add` genutzt (im Commit-Verlauf dieses Laufs nachvollziehbar).
 - [ ] Commit gepusht (dieser Auftrag trägt `GIT_PUSH`).

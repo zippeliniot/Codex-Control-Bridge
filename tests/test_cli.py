@@ -432,5 +432,343 @@ class CliTests(unittest.TestCase):
             main(["--root", str(self.tmp), "task", "set-status", "BRIDGE-0900", "READY"]), 2)
 
 
+# --------------------------------------------------------------------------- #
+# CLI --commit Flag (BRIDGE-025)
+# --------------------------------------------------------------------------- #
+
+def _setup_git_repo_for_cli(tmp: Path) -> Path:
+    """Initialisiert Working-Repo + bare-Repo als 'origin'. Gibt bare-Pfad zurueck."""
+    import subprocess
+    bare = Path(tempfile.mkdtemp(prefix="ccb-cli-bare-"))
+
+    def _g(*args, cwd=tmp):
+        r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            raise RuntimeError(f"git {' '.join(args)} fehlgeschlagen: {r.stderr.strip()}")
+        return r.stdout.strip()
+
+    _g("init", "-b", "main")
+    _g("config", "user.email", "test@example.com")
+    _g("config", "user.name", "Test")
+    (tmp / "README.md").write_text("init\n", encoding="utf-8")
+    _g("add", "README.md")
+    _g("commit", "-m", "initial")
+    _g("clone", "--bare", str(tmp), str(bare), cwd=tmp)
+    _g("remote", "add", "origin", str(bare))
+    _g("push", "--set-upstream", "origin", "main")
+    return bare
+
+
+class CliCommitTests(unittest.TestCase):
+    """Prueft das --commit-Flag auf den 5 Subcommands (BRIDGE-025).
+
+    Nutzt echte Git-Repos (kein Netzwerkzugriff: lokales bare-Repo als origin).
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="ccb-cli-commit-"))
+        for sub in ("tasks", "results", "audit"):
+            (self.tmp / sub).mkdir()
+        self.bare = _setup_git_repo_for_cli(self.tmp)
+        # Staging-YAML AUSSERHALB des Git-Repos (kein untracked-Artefakt im Repo)
+        self._staging_dir = Path(tempfile.mkdtemp(prefix="ccb-cli-staging-"))
+        doc = task_doc(git={"expected_head": "a" * 40})
+        p = self._staging_dir / "t.yaml"
+        p.write_text(yaml.safe_dump(doc), encoding="utf-8")
+        self._staging_path = str(p)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        shutil.rmtree(self.bare, ignore_errors=True)
+        shutil.rmtree(self._staging_dir, ignore_errors=True)
+
+    def cli(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = main(["--root", str(self.tmp), "--schema-dir", str(SCHEMA_DIR), *args])
+        return code, out.getvalue(), err.getvalue()
+
+    def _git(self, *args):
+        import subprocess
+        r = subprocess.run(["git", *args], cwd=self.tmp, capture_output=True,
+                           text=True, timeout=30)
+        return r.stdout.strip()
+
+    def _commit_count(self):
+        return int(self._git("rev-list", "--count", "HEAD"))
+
+    def _last_msg(self):
+        return self._git("log", "-1", "--format=%s")
+
+    def _stage_store_files(self, *paths):
+        """Dateien anlegen und in Git stagen (damit git status sie zeigt)."""
+        import subprocess
+        for rel in paths:
+            p = self.tmp / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            if not p.exists():
+                p.write_text("x\n", encoding="utf-8")
+        # Kein add hier - die Dateien sind untracked/modified nach CLI-Aufruf
+
+    # --- task create --commit -----------------------------------------------
+
+    def test_task_create_commit(self):
+        count_before = self._commit_count()
+        code, out, err = self.cli("task", "create", self._staging_path, "--commit")
+        self.assertEqual(code, 0, err)
+        self.assertIn("Commit", out)
+        self.assertEqual(self._commit_count(), count_before + 1)
+        msg = self._last_msg()
+        self.assertIn("BRIDGE-0900", msg)
+        self.assertIn("task_create", msg)
+
+    def test_task_create_without_commit_no_extra_commit(self):
+        count_before = self._commit_count()
+        code, _, _ = self.cli("task", "create", self._staging_path)
+        self.assertEqual(code, 0)
+        # Kein Commit ohne --commit
+        self.assertEqual(self._commit_count(), count_before)
+
+    # --- run start --commit -------------------------------------------------
+
+    def test_run_start_commit(self):
+        # task create (ohne --commit, manuell stagen)
+        self.cli("task", "create", self._staging_path)
+        import subprocess
+        subprocess.run(["git", "add", "tasks/BRIDGE-0900/task.yaml", "audit/audit.jsonl"],
+                       cwd=self.tmp, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "manual: task create"], cwd=self.tmp,
+                       capture_output=True)
+        count_before = self._commit_count()
+
+        code, out, err = self.cli("run", "start", "BRIDGE-0900", "--actor", "a", "--commit")
+        self.assertEqual(code, 0, err)
+        self.assertIn("Commit", out)
+        self.assertEqual(self._commit_count(), count_before + 1)
+        msg = self._last_msg()
+        self.assertIn("BRIDGE-0900", msg)
+        self.assertIn("run_start", msg)
+
+    # --- task copied --commit -----------------------------------------------
+
+    def test_task_copied_commit(self):
+        from unittest import mock
+        from bridge import importer, runner
+
+        def git_stub(root=None, base_head=None):
+            return {"repository": "Codex-Control-Bridge", "branch": "main",
+                    "head": "a" * 40, "base_head": base_head,
+                    "commits": [], "changed_files": []}
+
+        # Setup: task anlegen + run starten + finishen -> WAITING_FOR_COPY_TO_CONTROL
+        import subprocess, yaml as _yaml
+        self.cli("task", "create", self._staging_path)
+        subprocess.run(["git", "add", "tasks/BRIDGE-0900/task.yaml", "audit/audit.jsonl"],
+                       cwd=self.tmp, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "setup"], cwd=self.tmp, capture_output=True)
+
+        self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
+        subprocess.run(["git", "add", "-A"], cwd=self.tmp, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "run start"], cwd=self.tmp, capture_output=True)
+
+        with mock.patch.object(importer, "collect_git_info", git_stub):
+            self.cli("run", "finish", "BRIDGE-0900", "--status", "COMPLETED",
+                     "--actor", "a", "--base-head", "a" * 40)
+        subprocess.run(["git", "add", "-A"], cwd=self.tmp, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "run finish"], cwd=self.tmp, capture_output=True)
+
+        count_before = self._commit_count()
+        code, out, err = self.cli("task", "copied", "BRIDGE-0900", "--actor", "a", "--commit")
+        self.assertEqual(code, 0, err)
+        self.assertIn("Commit", out)
+        self.assertEqual(self._commit_count(), count_before + 1)
+        msg = self._last_msg()
+        self.assertIn("task_copied", msg)
+
+    # --- task archive --commit ----------------------------------------------
+
+    def test_task_archive_commit(self):
+        from unittest import mock
+        from bridge import importer
+
+        def git_stub(root=None, base_head=None):
+            return {"repository": "Codex-Control-Bridge", "branch": "main",
+                    "head": "a" * 40, "base_head": base_head,
+                    "commits": [], "changed_files": []}
+
+        import subprocess
+        # Setup: task -> run start -> finish -> copied -> archive
+        self.cli("task", "create", self._staging_path)
+        subprocess.run(["git", "add", "tasks/BRIDGE-0900/task.yaml", "audit/audit.jsonl"],
+                       cwd=self.tmp, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "setup"], cwd=self.tmp, capture_output=True)
+
+        self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
+        subprocess.run(["git", "add", "-A"], cwd=self.tmp, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "run start"], cwd=self.tmp, capture_output=True)
+
+        with mock.patch.object(importer, "collect_git_info", git_stub):
+            self.cli("run", "finish", "BRIDGE-0900", "--status", "COMPLETED",
+                     "--actor", "a", "--base-head", "a" * 40)
+        subprocess.run(["git", "add", "-A"], cwd=self.tmp, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "finish"], cwd=self.tmp, capture_output=True)
+
+        self.cli("task", "copied", "BRIDGE-0900", "--actor", "a")
+        subprocess.run(["git", "add", "-A"], cwd=self.tmp, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "copied"], cwd=self.tmp, capture_output=True)
+
+        count_before = self._commit_count()
+        code, out, err = self.cli("task", "archive", "BRIDGE-0900", "--actor", "a", "--commit")
+        self.assertEqual(code, 0, err)
+        self.assertIn("Commit", out)
+        self.assertEqual(self._commit_count(), count_before + 1)
+        msg = self._last_msg()
+        self.assertIn("task_archive", msg)
+
+    # --- Whitelist-Fehler: Exit-Code 3, Store-Aktion bleibt bestehen --------
+
+    def test_commit_whitelist_failure_exits_3_store_preserved(self):
+        import subprocess
+        code, _, _ = self.cli("task", "create", self._staging_path)
+        self.assertEqual(code, 0)
+        subprocess.run(["git", "add", "tasks/BRIDGE-0900/task.yaml", "audit/audit.jsonl"],
+                       cwd=self.tmp, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "setup"], cwd=self.tmp, capture_output=True)
+
+        # Unerwartete Datei anlegen
+        (self.tmp / "unrelated.txt").write_text("oops\n", encoding="utf-8")
+
+        # run start aendert task.yaml + audit.jsonl + heartbeat, PLUS unrelated.txt ist da
+        code, _, err = self.cli("run", "start", "BRIDGE-0900", "--actor", "a", "--commit")
+        # Exit-Code 3: Store-Aktion war erfolgreich, Commit fehlgeschlagen
+        self.assertEqual(code, 3, f"Erwartet 3, bekommen {code}: {err}")
+        self.assertIn("Git-Fehler", err)
+        # Store-Aktion war erfolgreich: Task ist jetzt RUNNING
+        from bridge.store import Store
+        task = Store(root=self.tmp, schema_dir=SCHEMA_DIR).load_task("BRIDGE-0900")
+        self.assertEqual(task["status"], "RUNNING")
+
+
+# --------------------------------------------------------------------------- #
+# base_head-Regressionstest (BRIDGE-025)
+# --------------------------------------------------------------------------- #
+
+class BaseHeadRegressionTests(unittest.TestCase):
+    """Stellt das BRIDGE-023/024-Szenario nach: mehrere Commits seit Taskerstellung,
+    run finish OHNE --base-head -> changed_files muss trotzdem den gesamten Lauf abdecken.
+    """
+
+    def setUp(self):
+        import subprocess, yaml as _yaml
+        self.tmp = Path(tempfile.mkdtemp(prefix="ccb-basehead-"))
+        for sub in ("tasks", "results", "audit"):
+            (self.tmp / sub).mkdir()
+        # Git-Repo initialisieren
+        self._sp = lambda *args: subprocess.run(
+            ["git", *args], cwd=self.tmp, capture_output=True, text=True, timeout=30)
+        self._sp("init", "-b", "main")
+        self._sp("config", "user.email", "test@example.com")
+        self._sp("config", "user.name", "Test")
+        (self.tmp / "README.md").write_text("init\n", encoding="utf-8")
+        self._sp("add", "README.md")
+        self._sp("commit", "-m", "initial")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _head(self):
+        return self._sp("rev-parse", "HEAD").stdout.strip()
+
+    def cli(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = main(["--root", str(self.tmp), "--schema-dir", str(SCHEMA_DIR), *args])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_base_head_auto_derived_from_task_yaml(self):
+        """Wenn --base-head fehlt, wird git.expected_head aus task.yaml verwendet."""
+        from unittest import mock
+        from bridge import importer
+        import shutil as _shutil
+
+        expected_head = self._head()
+        doc = task_doc(git={"expected_head": expected_head})
+        # Staging-YAML ausserhalb des Repos, damit sie nicht als untracked erscheint
+        staging_dir = Path(tempfile.mkdtemp(prefix="ccb-staging-"))
+        self.addCleanup(_shutil.rmtree, staging_dir, True)
+        p = staging_dir / "t.yaml"
+        p.write_text(yaml.safe_dump(doc), encoding="utf-8")
+
+        # Task anlegen (auto-chains zu WAITING_FOR_HANDOFF_TO_EXECUTOR)
+        code, _, err = self.cli("task", "create", str(p))
+        self.assertEqual(code, 0, err)
+
+        # Mehrere Commits nach Taskerstellung simulieren
+        self._sp("add", "tasks/BRIDGE-0900/task.yaml", "audit/audit.jsonl")
+        self._sp("commit", "-m", "commit-1")
+        (self.tmp / "src").mkdir(exist_ok=True)
+        (self.tmp / "src" / "feature.py").write_text("# new\n", encoding="utf-8")
+        self._sp("add", "src/feature.py")
+        self._sp("commit", "-m", "commit-2: new feature")
+        (self.tmp / "docs").mkdir(exist_ok=True)
+        (self.tmp / "docs" / "readme.md").write_text("docs\n", encoding="utf-8")
+        self._sp("add", "docs/readme.md")
+        self._sp("commit", "-m", "commit-3: docs")
+
+        # run start (ohne echtes git_info_fn)
+        self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
+        self._sp("add", "-A")
+        self._sp("commit", "-m", "run start commit")
+
+        # run finish OHNE --base-head -> soll git.expected_head nutzen
+        # Mit echtem git (kein Mock): changed_files muss alle 4 Commits seit
+        # expected_head abdecken.
+        code, out, err = self.cli("run", "finish", "BRIDGE-0900",
+                                   "--status", "COMPLETED", "--actor", "a",
+                                   "--summary", "fertig")
+        self.assertEqual(code, 0, err)
+
+        # Ergebnis lesen und changed_files pruefen
+        import yaml as _yaml
+        result_path = self.tmp / "results" / "BRIDGE-0900" / "RUN-01" / "result.yaml"
+        self.assertTrue(result_path.exists())
+        result = _yaml.safe_load(result_path.read_text(encoding="utf-8"))
+        changed = result.get("changed_files", [])
+        # Muss mehr als nur den letzten Commit abdecken
+        self.assertGreater(len(changed), 1,
+            f"changed_files deckt nur {changed} ab, erwartet mind. 2 Dateien "
+            f"(Regression BRIDGE-023/024: stiller Fallback auf letzten Commit)")
+        # src/feature.py und docs/readme.md muessen drin sein
+        self.assertIn("src/feature.py", changed, f"changed_files={changed}")
+        self.assertIn("docs/readme.md", changed, f"changed_files={changed}")
+
+    def test_missing_base_head_and_no_expected_head_fails_closed(self):
+        """Wenn --base-head fehlt UND git.expected_head nicht gesetzt ist,
+        schlaegt run finish fail-closed fehl (kein stiller Fallback)."""
+        import shutil as _shutil
+        # Task OHNE git.expected_head
+        doc = task_doc()
+        staging_dir = Path(tempfile.mkdtemp(prefix="ccb-staging-"))
+        self.addCleanup(_shutil.rmtree, staging_dir, True)
+        p = staging_dir / "t.yaml"
+        p.write_text(yaml.safe_dump(doc), encoding="utf-8")
+        self.cli("task", "create", str(p))
+        self._sp("add", "tasks/BRIDGE-0900/task.yaml", "audit/audit.jsonl")
+        self._sp("commit", "-m", "setup")
+        self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
+        self._sp("add", "-A")
+        self._sp("commit", "-m", "run start")
+
+        # run finish ohne --base-head und ohne git.expected_head -> Exit-Code 1
+        code, _, err = self.cli("run", "finish", "BRIDGE-0900",
+                                "--status", "COMPLETED", "--actor", "a")
+        self.assertEqual(code, 1, f"Erwartet 1 (fail-closed), bekommen {code}")
+        self.assertIn("base-head", err)
+        self.assertIn("fail-closed", err)
+        self.assertNotIn("Traceback", err)
+
+
 if __name__ == "__main__":
     unittest.main()

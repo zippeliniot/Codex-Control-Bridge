@@ -121,6 +121,20 @@ den Repo-Zustand gleichermaßen (siehe Abschnitt 5, Punkt 2).
   Auftrag arbeitet, aktiv nachfragen.
 - **`run finish` niemals ohne `--summary`** — sonst bleibt `result.yaml`
   ohne auswertbaren Inhalt.
+- **`--commit`-Flag (ab BRIDGE-025):** auf `task create`, `run start`,
+  `run finish`, `task copied`, `task archive` verfügbar. Committet lokal
+  (kein Push) ausschließlich die von der Store-Funktion geschriebenen
+  Dateien — per Whitelist fail-closed, Branch-Check (`main`), kein Force-Push.
+  **Sollte der Standardweg für Ops-Commits in Claude-Code-Läufen sein**,
+  statt manuelles `git add` mit der Gefahr, eine Datei zu vergessen.
+  Bei Whitelist- oder Branch-Fehler: Exit-Code 3, Store-Aktion bleibt.
+- **`--base-head` bei `run finish` (ab BRIDGE-025):** Fehlt das Flag,
+  wird `git.expected_head` aus `task.yaml` automatisch abgeleitet. Fehlt
+  auch das, bricht der Befehl fail-closed ab (Exit-Code 1). Das Feld
+  `git.expected_head` **muss** daher in der Staging-YAML stehen — es
+  enthält den HEAD-SHA zum Zeitpunkt der Auftragsanlage und sichert, dass
+  `changed_files` in `result.yaml` den **gesamten Lauf** abdeckt
+  (Bugfix für BRIDGE-023/024).
 
 ---
 

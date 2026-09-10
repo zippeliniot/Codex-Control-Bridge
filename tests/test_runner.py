@@ -273,7 +273,8 @@ class CliRunTests(Base):
         self.assertEqual(code, 0, err)
         with mock.patch.object(importer, "collect_git_info", git_stub):
             code, out, err = self.cli("run", "finish", "BRIDGE-0900",
-                                      "--status", "COMPLETED", "--actor", "a")
+                                      "--status", "COMPLETED", "--actor", "a",
+                                      "--base-head", "a" * 40)
         self.assertEqual(code, 0, err)
         self.assertEqual(self.store.load_task("BRIDGE-0900")["status"],
                          "WAITING_FOR_COPY_TO_CONTROL")
@@ -293,7 +294,8 @@ class CliRunTests(Base):
         self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
         with mock.patch.object(importer, "collect_git_info", git_stub):
             code, _, err = self.cli("run", "finish", "BRIDGE-0900",
-                                    "--status", "READY", "--actor", "a")
+                                    "--status", "READY", "--actor", "a",
+                                    "--base-head", "a" * 40)
         self.assertEqual(code, 1)
         self.assertNotIn("Traceback", err)
 
@@ -318,7 +320,8 @@ class CliRunTests(Base):
     def test_task_copied_from_waiting_for_copy(self):
         self.cli("run", "start", "BRIDGE-0900", "--actor", "a")
         with mock.patch.object(importer, "collect_git_info", git_stub):
-            self.cli("run", "finish", "BRIDGE-0900", "--status", "COMPLETED", "--actor", "a")
+            self.cli("run", "finish", "BRIDGE-0900", "--status", "COMPLETED", "--actor", "a",
+                     "--base-head", "a" * 40)
         code, out, err = self.cli("task", "copied", "BRIDGE-0900", "--actor", "mensch")
         self.assertEqual(code, 0, err)
         self.assertIn("REVIEW_REQUIRED", out)

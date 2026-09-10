@@ -1,0 +1,7 @@
+{
+  "actor": "claude-code",
+  "bridge_task_id": "BRIDGE-0025",
+  "kind": "bridge_heartbeat",
+  "last_seen": "2026-09-10T12:24:34Z",
+  "run_id": "RUN-01"
+}

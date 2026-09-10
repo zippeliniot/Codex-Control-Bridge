@@ -1,0 +1,46 @@
+schema_version: '1.0'
+kind: bridge_task
+bridge_task_id: BRIDGE-0025
+project_id: codex-control-bridge
+title: CLI haertet Commits - gitops.py, --commit-Flag, base_head fail-closed
+description: 'Behebt zwei unabhaengig identifizierte Root-Causes aus BRIDGE-023/024:
+  (1) changed_files in result.yaml war unvollstaendig, weil importer.collect_git_info
+  bei fehlendem --base-head still auf "nur letzter Commit" zurueckfaellt statt fail-closed
+  zu sein - base_head soll bei fehlendem Flag automatisch aus task.yaml.git.expected_head
+  abgeleitet werden. (2) task.yaml fehlte in einem manuellen git-add-Commit von Claude
+  Code - die in BRIDGE-024 gebaute Whitelist-Commit-Logik (_git_commit_and_push aus
+  webui.py) wird nach src/bridge/gitops.py extrahiert und ueber ein neues --commit-Flag
+  auch von der CLI genutzt (lokal, kein automatischer Push, Push bleibt Menschensache
+  laut CLAUDE.md Regel 4). Details, Kontext und Umsetzungsschritte in work-packages/BRIDGE-025.md.'
+task_class: BUGFIX
+repository: Codex-Control-Bridge
+branch: main
+git:
+  expected_head: 171eb14
+permissions:
+- WORKTREE_WRITE
+- TEST_EXECUTION
+- GIT_PUSH
+depends_on:
+- BRIDGE-0024
+acceptance_criteria:
+- src/bridge/gitops.py existiert, webui.py nutzt es, bestehende WebUiGitActionTests
+  unveraendert gruen
+- --commit-Flag auf task create, run start, run finish, task copied, task archive,
+  committet lokal ohne Push, exakt die Whitelist-Dateien pro kind
+- --force/--force-with-lease kommt im gesamten neuen/geaenderten Code nicht vor
+- Fehlt --base-head bei run finish, wird git.expected_head aus task.yaml automatisch
+  verwendet, fehlt auch das, fail-closed statt stillem Fallback
+- Regressionstest stellt das BRIDGE-023/024-Szenario nach, changed_files deckt bei
+  fehlendem --base-head trotzdem den gesamten Lauf ab
+- Whitelist-Fehler bei --commit fuehrt zu Exit-Code 3 und Klartext-Fehler, Store-Aktion
+  bleibt bestehen
+- SECURITY-MODEL.md und CCB-STEUERCHAT-ARBEITSWEISE.md um die neuen Mechanismen ergaenzt
+- Bestehende Tests (alle WebUi-Tests) weiterhin gruen
+- Neue Tests (gitops, CLI --commit, base_head-Regression) gruen
+- Alle Tests gruen (bestehende Basis + neue), frischer Klon verifiziert
+- Ab Schritt 6 im eigenen Lauf --commit statt manuellem git add genutzt
+- Commit gepusht (GIT_PUSH-Berechtigung im Profil)
+status: RUNNING
+created_at: '2026-09-10T12:14:17Z'
+created_by: browser-claude
