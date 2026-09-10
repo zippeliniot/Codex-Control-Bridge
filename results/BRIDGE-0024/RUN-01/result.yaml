@@ -1,0 +1,20 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0024
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: f5514f95412839d141acc3fa55c825c00a603cf2
+executor: claude-code
+started_at: '2026-09-10T11:52:42Z'
+ended_at: '2026-09-10T11:54:11Z'
+created_by: claude-code@unknown
+changed_files:
+- results/BRIDGE-0024/RUN-01/heartbeat.json
+- work-packages/BRIDGE-024.md
+summary: Web-UI fuehrt nach copied/archive/finish jetzt selbst git commit + git push
+  aus, abgesichert durch Datei-Whitelist-Check (fail-closed bei unerwarteten Aenderungen),
+  Branch-main-Pruefung und kategorischem force-push-Verbot. SECURITY-MODEL.md Abschnitt
+  5b entsprechend erweitert. 37 Tests gruen (bestehende + 5 neue WebUiGitActionTests).
