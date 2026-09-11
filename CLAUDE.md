@@ -5,6 +5,9 @@ projektunabhängige Vermittlungsschicht für Aufträge/Ergebnisse zwischen einem
 Steuerprozess und einer Ausführungsinstanz. Maßgeblich ist
 `docs/architecture/ARCHITECTURE.md`. Fachliche Grundlage: `docs/PROJEKTKONZEPT.md`.
 
+Für einen ChatGPT-gesteuerten Steuerprozess (statt Claude Code) siehe
+`CONTROL.md`.
+
 ## Ausführungsmodell
 
 - Claude Code läuft als **native Windows-App** und arbeitet ausschließlich in
@@ -49,6 +52,34 @@ Vor jeder Übergabe ausführen: `scripts\handover-check.ps1` (bzw. unter Git Bas
 `bash scripts/handover-check.sh`). Meldet das Skript `FAIL`, ist die Übergabe
 nicht zulässig, bis alles committed und gepusht ist.
 
+**Seit mehreren Projekten/Maschinen parallel (12.09.2026): dieselbe
+Sofort-Push-Pflicht gilt nicht nur bei Maschinenwechsel, sondern durchgehend
+— siehe „Checkpoint & Resume" Punkt 4 unten. Grund: Ein Projekt kann pausiert
+werden, während ein anderes auf einer anderen Maschine weiterläuft — GitHub
+muss jederzeit den wahren Stand zeigen, nicht nur am Wochenrhythmus-Wechsel.**
+
+## Git Push durch Claude Code
+
+Push bleibt grundsätzlich eine bewusste, freigegebene Aktion (Regel 6:
+Least Privilege) — das ändert sich hier nicht. Trägt ein Auftrag jedoch
+ausdrücklich die Berechtigung `GIT_PUSH` im Berechtigungsprofil
+(`docs/security/SECURITY-MODEL.md`, Abschnitt 2), darf Claude Code am
+Ende eines Laufs selbst `git push` ausführen. Die in
+`.claude/settings.json` hinterlegte Ask-Bestätigung für `git push`
+bleibt dabei bestehen und ersetzt die menschliche Freigabe — das
+Klicken auf "Erlauben" im Claude-Code-Fenster **ist** die Freigabe,
+kein zusätzlicher manueller Schritt in PowerShell nötig.
+
+Ohne `GIT_PUSH` im Berechtigungsprofil des Auftrags bleibt Push wie
+bisher ausschließlich Mensch-Aktion.
+
+`--force`-Push bleibt in jedem Fall verboten (Regel 6, Abschnitt 3 des
+Sicherheitsmodells) — unabhängig vom Berechtigungsprofil. Berechtigungen
+sind je Auftrag nur bei `bridge task create` festlegbar und danach
+unveränderlich — es gibt bewusst kein `task edit`. `GIT_PUSH` muss also
+bereits in der Staging-`tasks/incoming/<ID>.yaml` stehen, bevor der
+Auftrag angelegt wird.
+
 ## Modellsteuerung
 
 Das schwächste zuverlässig geeignete Modell mit der niedrigsten ausreichenden
@@ -86,6 +117,25 @@ Regeln:
   (fail-closed).
 - Nummernräume bleiben getrennt: niemals `DORF-xxx` im Footer verwenden.
 
+## `run finish` — Zusammenfassung verbindlich
+
+`bridge run finish` wird **niemals** ohne `--summary` aufgerufen — ein
+nackter Aufruf (`run finish --status COMPLETED --actor claude-code`) lässt
+`result.yaml` ohne aussagekräftigen Inhalt zurück (leeres `summary`, leere
+`acceptance_results`, unvollständige `changed_files`) und zwingt den
+Steuerprozess, Änderungen manuell per `git diff` zu rekonstruieren.
+
+- `--summary "..."`: kurze, konkrete Zusammenfassung, was der Lauf getan hat
+  (nicht nur „Auftrag abgeschlossen").
+- Wo `acceptance_results` sinnvoll dokumentiert werden soll (Abgleich gegen
+  die Akzeptanzkriterien aus `work-packages/BRIDGE-xxx.md`): `--from
+  draft.yaml` mit den entsprechenden Feldern nutzen, statt sie wegzulassen.
+- Ziel: `result.yaml` muss für sich allein lesbar sein, ohne dass jemand den
+  Commit-Verlauf durchsuchen muss.
+- Seit BRIDGE-025 zusätzlich: `--commit` nutzen, statt die geänderten Dateien
+  manuell per `git add` zu bestimmen (whitelist-basiert, verhindert
+  unvollständige Commits — siehe `docs/security/SECURITY-MODEL.md` Abschnitt 5c).
+
 ## Python-Umgebung (verbindlich)
 
 - Python-Arbeit läuft **immer im repo-lokalen `.venv`** im Repo-Wurzelverzeichnis,
@@ -114,9 +164,31 @@ Regeln für jeden Auftrag:
    die Lauf-ID (`RUN-02`, …). Der Steuerprozess vermerkt
    `WAITING_FOR_RESUME → RUNNING`; bei Bedarf trägt `resume_hint` im Ergebnis die
    feinere Notiz.
-4. **Vor einem Maschinenwechsel** muss der Stand vollständig committet und
-   gepusht sein (`handover-check`), sonst geht der Wiederaufsetzpunkt verloren.
+4. **Sofort pushen, nicht sammeln (verschärft, 12.09.2026).** Jeder Commit aus
+   Punkt 1 wird **unmittelbar gepusht**, nicht erst am Ende des Laufs oder vor
+   einem Maschinenwechsel gebündelt. Grund: Bei mehreren parallel laufenden
+   Projekten/Maschinen ist GitHub die einzige Stelle, an der ein neuer
+   Steuerchat oder eine andere Maschine den echten Stand sieht (SSOT, siehe
+   `docs/handover/HANDOVER.md`). Ungepushte lokale Commits sind für den Rest
+   des Systems unsichtbar — ein pausiertes Projekt muss auf GitHub trotzdem
+   seinen letzten echten Stand zeigen, nicht einen veralteten.
+5. **Vor einem Maschinenwechsel** zusätzlich `handover-check` laufen lassen
+   (sauberer Working Tree, keine Stashes, alle Pflichtdokumente vorhanden) —
+   das ist eine Abschlussprüfung, kein Ersatz für Punkt 4.
 
 Hinweis: Die *automatische* Erkennung eines toten Executors und das selbsttätige
 Setzen von `INTERRUPTED` übernehmen später Watcher/Runner (BRIDGE-008/009). Bis
 dahin sichern diese Regeln die Wiederaufnahme bereits in Stufe 1.
+
+## Heartbeat an Checkpoints (verbindlich, sobald ein Auftrag unter dem Runner läuft)
+
+Wird ein Auftrag über den Runner ausgeführt, schlägt der Executor den Heartbeat
+an **jedem** committeten Teilschritt:
+
+```
+python src/bridge/cli.py run beat <BRIDGE-id> --actor claude-code
+```
+
+So bleiben die Schläge aus, sobald die Arbeit stirbt (z. B. Usage-Limit), und der
+Watcher erkennt den steckengebliebenen Lauf. Der Heartbeat ersetzt nicht das
+Committen — er begleitet es.
