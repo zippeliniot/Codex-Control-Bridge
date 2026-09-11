@@ -47,6 +47,13 @@ ausschließlich das Repository (Code **und** fachliche Dokumente). Versionierbar
 Zustände gehören ins Repo, nie nur in einen Chat. GitHub ist der einzige
 Austauschkanal zwischen den Maschinen.
 
+**Sofort pushen, nicht sammeln (verschärft, 12.09.2026):** Der Controller hat
+per Definition keinen lokalen Checkout — er sieht nur, was auf GitHub liegt.
+Jeder Executor-Commit (Codex wie Claude Code) wird unmittelbar gepusht, nicht
+erst am Laufende gebündelt. Ein pausiertes Projekt muss auf GitHub trotzdem
+seinen letzten echten Stand zeigen, sonst berichtet der Controller einem neuen
+Steuerchat einen veralteten Zustand.
+
 ## Bootstrap-Checkliste für einen neuen ChatGPT-Steuerchat
 
 Vor der ersten Aussage über ein Projekt lädt der Controller aus dem Repo:
