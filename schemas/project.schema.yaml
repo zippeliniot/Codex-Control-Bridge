@@ -137,3 +137,24 @@ properties:
     default: null
     properties:
       allow_production: { type: boolean }
+  orchestrator_policy:
+    description: >-
+      Projektspezifische Grenze fuer automatisches Ausloesen durch einen
+      kuenftigen Orchestrator-Prozess (BRIDGE-0031). Alles ausserhalb von
+      auto_trigger_permissions bleibt Vorschlag/Mensch-Aktion.
+    type: ["object", "null"]
+    additionalProperties: false
+    default: null
+    properties:
+      auto_trigger_permissions:
+        description: >-
+          Permission-Typen, die fuer dieses Projekt automatisch ausgeloest
+          werden duerfen. FORCE_PUSH ist hier bewusst nicht im Enum (siehe
+          BRIDGE-024 Sicherheitsentscheid, keine Ausnahme moeglich).
+        type: array
+        items:
+          type: string
+          enum: [READ_ONLY, WORKTREE_WRITE, TEST_EXECUTION, GIT_STAGE,
+                 GIT_COMMIT, GIT_PUSH, PR_CREATE, MERGE, DEPLOY,
+                 DATABASE_WRITE]
+        default: [READ_ONLY, WORKTREE_WRITE, TEST_EXECUTION]

@@ -1,9 +1,8 @@
 # CCB — Konzept: Orchestrator (Reihenfolge-/Ausführungsautomatik)
 
-**Status: Konzept/Diskussionsgrundlage, kein Auftrag, kein Code.** Wird erst
-zu `BRIDGE-0027` (o. ä.), wenn die offenen Punkte unten geklärt sind und
-`BRIDGE-0026` (Gesamtübersicht) abgeschlossen und verifiziert ist —
-Ein-Auftrag-zur-Zeit-Disziplin gilt für Code unverändert.
+**Status: Schema-Grundbaustein implementiert (BRIDGE-0027 abgeschlossen).** Die
+eigentliche Auslöselogik folgt in BRIDGE-0031, sobald die Bausteine 0028–0030
+fertig sind. Kein Code für den Orchestrator-Auslöser in diesem Dokument.
 
 ## Ausgangslage (aus der Steuerchat-Sitzung, 12.09.2026)
 
@@ -17,82 +16,87 @@ nicht nur anzeigen, was passiert (BRIDGE-0026), sondern auch:
    zusätzlich zu `depends_on` (bereits vorhanden).
 3. **In der Web-UI** laufen, auf Basis von BRIDGE-023/024.
 
-## Drei Fragen, die vor einer Spezifikation geklärt sein müssen
+## Getroffene Entscheidungen (Steuerchat, 12.09.2026)
 
-### 1. Wo verläuft die Grenze „Vorschlag" vs. „automatischer Auslöser"?
+### Frage 1: Grenze „Vorschlag" vs. „automatischer Auslöser" — projektabhängig
 
-`SECURITY-MODEL.md` Abschnitt 3 („kritische Aktionen nie implizit") gilt
-unverändert. Ein Orchestrator, der selbständig `run start`/`task copied`
-auslöst, ist selbst eine Aktion mit Konsequenzen. Vorschlag für die
-Abgrenzung (zur Diskussion, keine Festlegung):
+Die Grenze ist **nicht global**, sondern **pro Projekt einstellbar**: Jedes
+Projekt bekommt ein eigenes `orchestrator_policy`-Feld in `project.yaml`
+(`schemas/project.schema.yaml`), das festlegt, welche Permission-Typen für
+dieses Projekt automatisch ausgelöst werden dürfen.
 
-- **Automatisch auslösen erlaubt:** Aufträge mit `permissions` ⊆
-  `[READ_ONLY, WORKTREE_WRITE, TEST_EXECUTION]` — keine Git-Schreib-, keine
-  kritischen Rechte. Entspricht dem bereits bestehenden Least-Privilege-
-  Grundsatz: reine Lese-/Test-Arbeit braucht keine explizite menschliche
-  Freigabe pro Schritt, nur die grundsätzliche Auftragsfreigabe bei
-  Erstellung.
-- **Nur Vorschlag, nie automatisch:** sobald `GIT_PUSH`, `MERGE`, `DEPLOY`,
-  `DATABASE_WRITE`, `FORCE_PUSH`, `PR_CREATE` in `permissions` steht — hier
-  entscheidet weiterhin ein Mensch (oder der jeweilige Controller nach
-  ausdrücklicher Freigabe, analog `CONTROL.md`).
-- **Offene Frage an dich:** Ist diese Grenze richtig gezogen, oder sollte
-  sie projektabhängig sein (`project.yaml` bekommt ein
-  `orchestrator_policy`-Feld)?
+- **`FORCE_PUSH` bleibt kategorisch ausgeschlossen** — nicht konfigurierbar,
+  nicht verhandelbar (bestehende Leitplanke aus BRIDGE-024, Sicherheitsmodell
+  Abschnitt 3). Das Feld `auto_trigger_permissions` enthält `FORCE_PUSH`
+  bewusst nicht im Enum.
+- Alle anderen Permission-Typen (inkl. `GIT_PUSH`, `MERGE`, `DEPLOY`,
+  `DATABASE_WRITE`, `PR_CREATE`) können projektindividuell freigegeben werden —
+  der **Default** ist konservativ: `[READ_ONLY, WORKTREE_WRITE, TEST_EXECUTION]`.
+- Schema-Feld ist optional mit `default: null` → alle bestehenden
+  Projektprofile bleiben ohne Änderung gültig.
 
-### 2. Priorität/Dringlichkeit — welches Feld, welche Werte, welcher Default?
+Implementiert in BRIDGE-0027 (dieses Dokument).
 
-Schema-Änderung an `task.schema.yaml` (SSOT) — **nicht trivial**, jeder
-bestehende Auftrag muss mit einem sinnvollen Default weiterfunktionieren.
-Zur Diskussion:
+### Frage 2: Priorität — Stufen LOW/MEDIUM/HIGH, manuelle Zuweisung
 
-- Einfache Stufen (`LOW`/`MEDIUM`/`HIGH`/`URGENT`), Default `MEDIUM` — analog
-  zur bereits vorhandenen `reasoning_level`-Konvention (bekanntes Muster,
-  keine neue Systematik).
-- Oder eine reine Zahl (z. B. 1–5)?
-- **Offene Frage an dich:** Wer setzt die Priorität — der Steuerchat bei
-  `task create`, oder soll sie sich aus etwas ableiten (z. B. Alter des
-  Auftrags, Anzahl wartender Folgeaufträge über `depends_on`)?
-- Zusätzlich zur Priorität: **Maschinen-Kapazität** war in der vorherigen
-  Frage explizit *nicht* gewählt — heißt das, zwei Aufträge dürfen
-  bewusst gleichzeitig auf derselben Maschine „bereit" sein, und die
-  Reihenfolge ist rein eine Anzeige-/Empfehlungsfrage, nicht eine
-  technische Sperre? Das sollte hier explizit bestätigt werden, sonst
-  entsteht ein Missverständnis.
+- **Stufen:** `LOW` / `MEDIUM` / `HIGH` (kein `URGENT` — einfach halten,
+  analog zur bestehenden `reasoning_level`-Konvention).
+- **Default:** `MEDIUM`.
+- **Zuweisung:** manuell über das Web-GUI (nicht automatisch abgeleitet aus
+  Alter oder `depends_on`-Tiefe).
+- **CLI-Befehl:** `bridge task set-priority` — eigener, späterer Auftrag
+  (**BRIDGE-0028**, nicht Teil dieses Auftrags).
 
-### 3. Web-UI als Trägerprozess — Konsequenz für „automatisch"
+### Frage 3: Web-UI als Trägerprozess — zentrale Mehrmaschinen-Steuerung
 
-Die Web-UI läuft nur, **solange jemand `webui serve` gestartet hat und das
-Fenster offen ist** (`http://127.0.0.1:8420`, hart an localhost gebunden,
-kein Hintergrunddienst). Ein „automatischer Auslöser in der Web-UI" bedeutet
-also: **nur aktiv, wenn die Web-UI gerade läuft** — kein Auto-Pilot rund um
-die Uhr, kein Ersatz für den bereits im Schema vorgesehenen `watch loop`
-(eigener Dauerprozess). Das ist wahrscheinlich so gewollt (du hast „Teil der
-Web-UI" explizit gewählt, nicht `watch loop`), aber die Konsequenz — kein
-24/7-Betrieb ohne offenes Browserfenster — sollte bewusst sein, nicht
-nachträglich überraschen.
+Die Web-UI (`http://127.0.0.1:8420`) soll zur zentralen Mehrmaschinen-/
+Mehrprojekt-Steuerung ausgebaut werden. Zwei konkrete Folgeentscheidungen:
 
-## Vorgeschlagener grober Aufbau (zur Diskussion, nicht final)
+**Push-Retry (BRIDGE-0029):** Der CCB-Store (`audit/audit.jsonl` u. a.) ist
+projektübergreifend gemeinsam in einem Repo. Bei gleichzeitigen Commits aus
+mehreren Projekten/Maschinen kann `git push` an Non-Fast-Forward scheitern.
+Lösung: automatisches `git pull --rebase` + Retry bei Push-Fehlschlag — nie
+`--force`. Eigener Auftrag **BRIDGE-0029**, nicht Teil dieses Auftrags.
 
-1. `task.schema.yaml`: neues optionales Feld `priority` (Enum oder Zahl,
-   Default definiert), rückwärtskompatibel.
-2. `project.yaml`-Erweiterung (optional): `orchestrator_policy` — pro
-   Projekt einstellbar, ob/wie automatisch ausgelöst werden darf, statt
-   einer globalen Regel für alle sieben Projekte gleichermaßen.
+**Review-Unternummern (BRIDGE-0030):** Support-KI-Prüfaufträge bekommen eine
+sichtbare Unternummer (`BRIDGE-0027-R1` usw., Schema-Pattern-Erweiterung),
+`task_class: READONLY_CHECK`, technisch auf reine Leserechte beschränkt.
+Eigener Auftrag **BRIDGE-0030**, nicht Teil dieses Auftrags.
+
+**Laufzeit-Einschränkung bleibt:** Die Web-UI läuft nur, solange jemand
+`webui serve` gestartet hat — kein 24/7-Betrieb ohne offenes Browserfenster,
+kein Hintergrunddienst. Bewusst gewählt (nicht `watch loop`).
+
+## Roadmap (Umsetzungsreihenfolge, kein Auto-Start)
+
+| Auftrag | Inhalt | Zustand |
+|---------|--------|---------|
+| **BRIDGE-0027** | `orchestrator_policy`-Feld in `project.schema.yaml` + diese Entscheidungen dokumentiert | **abgeschlossen** |
+| **BRIDGE-0028** | Prioritätsfeld (`priority` in `task.schema.yaml`) + `bridge task set-priority` + Web-UI-Zuweisung + Sortierung nach Priorität in Board/Overview | geplant |
+| **BRIDGE-0029** | Git-Push-Retry (`pull --rebase` + Retry) in `gitops.py` | geplant |
+| **BRIDGE-0030** | Review-Unternummern-Pattern (`-R<n>`-Suffix) + technische Durchsetzung `review_roles.support` als Leserrolle | geplant |
+| **BRIDGE-0031** | Eigentliche Orchestrator-Auslöselogik, aufbauend auf `orchestrator_policy` + `priority` (erst nach 0027–0030 fertig) | geplant |
+
+## Vorgeschlagener grober Aufbau (zur Implementierung, BRIDGE-0031)
+
+1. `task.schema.yaml`: neues optionales Feld `priority` (Enum LOW/MEDIUM/HIGH,
+   Default `MEDIUM`), rückwärtskompatibel — **BRIDGE-0028**.
+2. `project.yaml`-Erweiterung: `orchestrator_policy` — bereits implementiert
+   (BRIDGE-0027), pro Projekt konfigurierbar.
 3. Neue Funktion (aufbauend auf `bridge overview` aus BRIDGE-0026): aus
-   allen „bereiten" Aufträgen (Abhängigkeiten erfüllt, keine Maschinen-
-   Kollision — falls doch gewünscht, siehe Frage 2) den nächsten nach
-   Priorität auswählen.
-4. Je nach Berechtigungsprofil (Frage 1): Button „Vorschlag anzeigen" vs.
-   automatischer Trigger-Aufruf der Bridge-CLI aus der Web-UI heraus
-   (technisch: derselbe `subprocess`-Mechanismus wie `gitops.py`, aber für
-   `bridge run start` statt `git commit`/`push` — neue Whitelist-Logik,
-   nicht die bestehende wiederverwenden, da andere Aktion).
+   allen „bereiten" Aufträgen (Abhängigkeiten erfüllt) den nächsten nach
+   Priorität auswählen — **BRIDGE-0031**.
+4. Je nach Berechtigungsprofil (`orchestrator_policy.auto_trigger_permissions`):
+   Button „Vorschlag anzeigen" vs. automatischer Trigger-Aufruf der Bridge-CLI
+   aus der Web-UI heraus (technisch: `subprocess`-Mechanismus analog
+   `gitops.py`, aber für `bridge run start` — neue Whitelist-Logik,
+   bestehende nicht wiederverwenden) — **BRIDGE-0031**.
 
 ## Nicht Teil dieses Konzepts (bewusst abgegrenzt)
 
 - Kein `watch loop`-Dauerprozess (explizit nicht gewählt).
 - Keine Änderung an `schemas/state-model.yaml` — der Orchestrator schlägt
   vor/löst aus, erfindet aber keine neuen Zustände.
-- Keine Maschinen-Kapazitätssperre (laut Antwort auf Frage „Priorität statt
-  Maschinen-Kapazität" — zur Bestätigung siehe Frage 2 oben).
+- Keine Maschinen-Kapazitätssperre — zwei Aufträge dürfen bewusst gleichzeitig
+  auf derselben Maschine „bereit" sein; Reihenfolge ist eine
+  Anzeige-/Empfehlungsfrage, keine technische Sperre.

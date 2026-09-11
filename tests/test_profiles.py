@@ -213,6 +213,62 @@ class ProfilesTests(unittest.TestCase):
     def test_resolve_review_roles_both_none(self):
         self.assertIsNone(profiles.resolve_review_roles({}, {}))
 
+    # -- orchestrator_policy Schema (BRIDGE-027) -------------------
+
+    def test_orchestrator_policy_null_valid(self):
+        """orchestrator_policy: null ist der Standardfall — muss validieren."""
+        doc = valid_profile(orchestrator_policy=None)
+        profiles.validate_profile(doc, SCHEMA_DIR)
+
+    def test_orchestrator_policy_with_read_only_valid(self):
+        """orchestrator_policy mit auto_trigger_permissions: [READ_ONLY] — gueltig."""
+        doc = valid_profile(
+            orchestrator_policy={"auto_trigger_permissions": ["READ_ONLY"]}
+        )
+        profiles.validate_profile(doc, SCHEMA_DIR)
+
+    def test_orchestrator_policy_with_all_allowed_perms_valid(self):
+        """Alle erlaubten Permission-Werte (ohne FORCE_PUSH) — muss validieren."""
+        doc = valid_profile(orchestrator_policy={
+            "auto_trigger_permissions": [
+                "READ_ONLY", "WORKTREE_WRITE", "TEST_EXECUTION",
+                "GIT_STAGE", "GIT_COMMIT", "GIT_PUSH",
+                "PR_CREATE", "MERGE", "DEPLOY", "DATABASE_WRITE",
+            ]
+        })
+        profiles.validate_profile(doc, SCHEMA_DIR)
+
+    def test_orchestrator_policy_force_push_rejected(self):
+        """FORCE_PUSH in auto_trigger_permissions muss vom Schema abgelehnt werden."""
+        bad = valid_profile(
+            orchestrator_policy={"auto_trigger_permissions": ["FORCE_PUSH"]}
+        )
+        with self.assertRaises(profiles.ProfileError):
+            profiles.validate_profile(bad, SCHEMA_DIR)
+
+    def test_orchestrator_policy_force_push_mixed_rejected(self):
+        """FORCE_PUSH zusammen mit gueltigen Werten — ebenfalls abzulehnen."""
+        bad = valid_profile(
+            orchestrator_policy={
+                "auto_trigger_permissions": ["READ_ONLY", "FORCE_PUSH", "GIT_PUSH"]
+            }
+        )
+        with self.assertRaises(profiles.ProfileError):
+            profiles.validate_profile(bad, SCHEMA_DIR)
+
+    def test_orchestrator_policy_absent_still_valid(self):
+        """Profil ohne orchestrator_policy-Schluessel — Feld ist optional, muss validieren."""
+        doc = valid_profile()
+        self.assertNotIn("orchestrator_policy", doc)
+        profiles.validate_profile(doc, SCHEMA_DIR)
+
+    def test_all_seven_real_project_profiles_still_valid(self):
+        """Alle sieben bestehenden project.yaml muessen ohne Aenderung gueltig bleiben."""
+        for pid in profiles.list_profiles(REPO_ROOT):
+            with self.subTest(project=pid):
+                doc = profiles.load_profile(REPO_ROOT, pid)
+                self.assertIsNotNone(doc)
+
 
 class CliProjectTests(unittest.TestCase):
     def setUp(self):
