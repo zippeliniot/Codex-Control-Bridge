@@ -1,0 +1,39 @@
+schema_version: '1.0'
+kind: bridge_task
+bridge_task_id: BRIDGE-0026
+project_id: codex-control-bridge
+title: Gesamtuebersicht - alle Auftraege, alle Zustaende, mit Maschine
+description: Neuer, rein lesender CLI-Befehl `bridge overview` plus zusaetzlicher
+  Web-UI-Bereich, der ALLE Auftraege ueber ALLE Zustaende zeigt (inkl. RUNNING/CLAIMED,
+  die das bestehende Board bewusst versteckt), inkl. letzter bekannter Maschine (aus
+  vorhandenen machine-Feldern in Audit/Heartbeat, kein neues Datenfeld). Sortierung
+  aktiv-oben/inaktiv-unten ueber eine Inaktivitaets-Heuristik (Heartbeat- Schwelle
+  bzw. WAITING_FOR_RESUME/INTERRUPTED), OHNE neuen Zustand im schemas/state-model.yaml.
+  Bestehende Board-/Aktions-Funktionen (Kopiert-Review, Archivieren, Lauf abschliessen,
+  Auto-Commit+Push, persistenter Log, Filter) bleiben vollstaendig erhalten. Details
+  in work-packages/BRIDGE-026.md.
+task_class: FEATURE
+repository: Codex-Control-Bridge
+branch: main
+git:
+  expected_head: d2407b8
+permissions:
+- WORKTREE_WRITE
+- TEST_EXECUTION
+- GIT_PUSH
+depends_on: []
+acceptance_criteria:
+- bridge overview zeigt alle Auftraege, alle Zustaende inkl. RUNNING/CLAIMED
+- Maschine wird angezeigt wo bekannt, '?' wo das machine-Feld fehlt, kein Erfinden
+  von Werten
+- Aktive Auftraege oben, inaktive unten, Schwelle dokumentiert
+- Web-UI zeigt dieselbe Uebersicht zusaetzlich, ersetzt nichts Bestehendes
+- Bestehende Aktions-Funktionen unveraendert funktionsfaehig
+- Kein neuer Zustand im schemas/state-model.yaml
+- CCB-STEUERCHAT-REFERENZ.md aktualisiert
+- Bestehende Tests weiterhin gruen, neue Tests gruen
+- Alle Tests gruen, frischer Klon verifiziert
+- Jeder Commit sofort gepusht, nicht gesammelt
+status: RUNNING
+created_at: '2026-09-12T00:00:00Z'
+created_by: browser-claude

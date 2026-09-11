@@ -48,6 +48,7 @@ from bridge import gitops, importer, runner, state_machine
 # `bridge task archive` - garantiert keine zweite, abweichende Implementierung.
 from bridge.cli import (
     _BOARD_STATES, _board_rows, _fmt_wait, _list_task_docs,
+    _overview_rows, _OVERVIEW_INACTIVE_THRESHOLD_MINUTES,
     task_archive, task_copied,
 )
 from bridge.store import StoreError
@@ -153,6 +154,36 @@ def board_payload(store) -> dict:
     other.sort(key=lambda r: r["bridge_task_id"])
 
     return {"board": board, "other": other, "finish_targets": list(_FINISH_TARGETS)}
+
+
+def overview_payload(store) -> dict:
+    """Payload fuer ``GET /api/overview`` — Gesamtuebersicht aller Auftraege.
+
+    Verwendet exakt dieselbe ``_overview_rows``-Logik wie ``bridge overview``
+    in der CLI — eine Implementierung, keine Abweichung (BRIDGE-026).
+
+    Gibt ``{"overview": [...], "inactive_threshold_minutes": N}`` zurueck.
+    Jede Zeile hat:
+    ``bridge_task_id, projekt, fuehrung, status, machine, last_activity, is_active``.
+    """
+    now = datetime.now(timezone.utc)
+    rows = _overview_rows(store, now=now)
+    overview = [
+        {
+            "bridge_task_id": task_id,
+            "projekt": projekt,
+            "fuehrung": fuehrung,
+            "status": status,
+            "machine": machine,
+            "last_activity": last_activity,
+            "is_active": is_active,
+        }
+        for task_id, projekt, fuehrung, status, machine, last_activity, is_active in rows
+    ]
+    return {
+        "overview": overview,
+        "inactive_threshold_minutes": _OVERVIEW_INACTIVE_THRESHOLD_MINUTES,
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -277,6 +308,7 @@ _PAGE = r"""<!doctype html>
   .err { color: #c00; }
   .ok { color: #0a0; }
   .note { color: #888; font-size: .85rem; margin-top: .25rem; }
+  .ov-sep td { color: #888; font-style: italic; border-bottom: 0; padding: .2rem .6rem; }
 </style>
 </head>
 <body>
@@ -317,6 +349,21 @@ _PAGE = r"""<!doctype html>
   (z.&nbsp;B. h&auml;ngengebliebene L&auml;ufe).
 </p>
 
+<h2>Alle Projekte &ndash; Gesamt&uuml;bersicht</h2>
+<p class="note">
+  Alle Auftr&auml;ge &uuml;ber <em>alle</em> Zust&auml;nde &mdash; auch
+  <code>RUNNING</code>/<code>CLAIMED</code>, die das Board oben bewusst
+  versteckt. Maschine zeigt <code>?</code> wo kein
+  <code>--machine</code>-Flag &uuml;bergeben wurde (keine erfundenen Werte).
+  Schwelle &bdquo;inaktiv&ldquo;: kein Heartbeat seit
+  %INACTIVE_THRESHOLD%&nbsp;Min. trotz <code>RUNNING</code> oder Zustand
+  <code>WAITING_FOR_RESUME</code>/<code>INTERRUPTED</code>.
+</p>
+<table id="ov-table"><thead><tr>
+  <th>#</th><th>Projekt</th><th>Auftrag</th><th>Status</th>
+  <th>Maschine</th><th>Aktiv vor</th><th>F&uuml;hrung/Pr&uuml;fung</th>
+</tr></thead><tbody></tbody></table>
+
 <script>
 %PURE_JS%
 
@@ -329,8 +376,10 @@ const ACTION_LABEL = {copied: "Kopiert → Review", archive: "Archivieren", fini
 // - lastData: letzter /api/board-Payload, damit Filteraenderungen ohne
 //   erneuten Fetch neu gerendert werden koennen
 // - logEntries: In-Memory-Historie, wird NIE vom refresh()-Zyklus angeruehrt
+// BRIDGE-026: lastOverviewData analog zu lastData
 const filterState = {projekt: "", status: "", id: ""};
 let lastData = {board: [], other: []};
+let lastOverviewData = [];
 const logEntries = [];
 
 function esc(s) {
@@ -386,9 +435,34 @@ function renderTables() {
     : row(["<span class='empty'>nichts passt</span>"]);
 }
 
+// BRIDGE-026: Gesamtuebersicht-Tabelle rendern.
+// Dieselbe filterState-Logik wie renderTables() — Filter/Fokus bleibt beim Refresh erhalten.
+function renderOverview() {
+  const f = {projekt: filterState.projekt, status: filterState.status, id: filterState.id};
+  const rows = filterRows(lastOverviewData, f);
+  const cells = [];
+  let prevActive = null;
+  rows.forEach(function(r, i) {
+    if (prevActive === true && !r.is_active) {
+      cells.push("<tr class='ov-sep'><td colspan='7'>&mdash; inaktiv / unterbrochen &mdash;</td></tr>");
+    }
+    cells.push(row([
+      i + 1, esc(r.projekt),
+      "<span class='id'>" + esc(r.bridge_task_id) + "</span>",
+      esc(r.status), esc(r.machine), esc(r.last_activity), esc(r.fuehrung)
+    ]));
+    prevActive = r.is_active;
+  });
+  document.querySelector("#ov-table tbody").innerHTML = rows.length
+    ? cells.join("")
+    : row(["<span class='empty'>keine Aufträge</span>"]);
+}
+
 function updateStatusList() {
   const seen = {};
   lastData.board.concat(lastData.other).forEach(r => { if (r.status) seen[r.status] = 1; });
+  // BRIDGE-026: Zustaende aus der Gesamtuebersicht ebenfalls anbieten
+  lastOverviewData.forEach(r => { if (r.status) seen[r.status] = 1; });
   document.getElementById("statuslist").innerHTML =
     Object.keys(seen).sort().map(s => "<option value='" + esc(s) + "'>").join("");
 }
@@ -477,20 +551,33 @@ async function refresh() {
     meta.textContent = "Fehler beim Laden: " + e.message;
     meta.classList.add("err");
   }
+  // BRIDGE-026: Gesamtuebersicht separat laden — Fehler hier stoeren das Board nicht.
+  try {
+    const ovRes = await fetch("/api/overview", {headers: {"Accept": "application/json"}});
+    const ovData = await ovRes.json();
+    if (ovRes.ok && !ovData.error) {
+      lastOverviewData = ovData.overview || [];
+      updateStatusList();  // Zustaende aus Overview ebenfalls anbieten
+      renderOverview();    // beruecksichtigt den zuletzt aktiven Filter
+    }
+  } catch(e) { /* Fehler in Overview stoeren das Board nicht */ }
 }
 
 // Filter-Eingaben: Wert in filterState spiegeln und nur die tbody neu rendern.
 // Die Inputs selbst werden nie ersetzt -> Fokus/Cursor bleiben beim Tippen.
+// BRIDGE-026: renderOverview() wird ebenfalls aufgerufen (gleiche filterState-Variable).
 [["f-projekt", "projekt"], ["f-status", "status"], ["f-id", "id"]].forEach(pair => {
   document.getElementById(pair[0]).addEventListener("input", ev => {
     filterState[pair[1]] = ev.target.value;
     renderTables();
+    renderOverview();
   });
 });
 document.getElementById("f-clear").addEventListener("click", () => {
   filterState.projekt = filterState.status = filterState.id = "";
   ["f-projekt", "f-status", "f-id"].forEach(x => { document.getElementById(x).value = ""; });
   renderTables();
+  renderOverview();
 });
 
 document.addEventListener("click", ev => {
@@ -502,7 +589,8 @@ setInterval(refresh, REFRESH_MS);
 </script>
 </body>
 </html>
-""".replace("%PURE_JS%", _PURE_JS).replace("%REFRESH_MS%", str(REFRESH_SECONDS * 1000))
+""".replace("%PURE_JS%", _PURE_JS).replace("%REFRESH_MS%", str(REFRESH_SECONDS * 1000)).replace(
+    "%INACTIVE_THRESHOLD%", str(_OVERVIEW_INACTIVE_THRESHOLD_MINUTES))
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -547,6 +635,14 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(500, {"error": str(exc)})
                 return
             payload["actor"] = getattr(self.server, "actor", None)
+            self._json(200, payload)
+            return
+        if route == "/api/overview":
+            try:
+                payload = overview_payload(self.server.store)
+            except Exception as exc:  # noqa: BLE001
+                self._json(500, {"error": str(exc)})
+                return
             self._json(200, payload)
             return
         self._json(404, {"error": f"nicht gefunden: {route}"})
