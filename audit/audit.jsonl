@@ -101,3 +101,4 @@
 {"actor": "claude-code@unknown", "bridge_task_id": "BRIDGE-0026", "event_type": "RESULT_WRITTEN", "run_id": "RUN-01", "timestamp": "2026-09-11T10:01:14Z"}
 {"actor": "claude-code", "bridge_task_id": "BRIDGE-0026", "event_type": "TASK_COMPLETED", "new_state": "COMPLETED", "old_state": "RUNNING", "reason": "runner: finish -> COMPLETED", "timestamp": "2026-09-11T10:01:14Z"}
 {"actor": "claude-code", "bridge_task_id": "BRIDGE-0026", "event_type": "TASK_WAITING_FOR_COPY", "new_state": "WAITING_FOR_COPY_TO_CONTROL", "old_state": "COMPLETED", "reason": "auto: wartet auf Kopie in den Steuerchat", "timestamp": "2026-09-11T10:01:14Z"}
+{"actor": "browser-claude", "bridge_task_id": "BRIDGE-0026", "event_type": "REVIEW_REQUESTED", "new_state": "REVIEW_REQUIRED", "old_state": "WAITING_FOR_COPY_TO_CONTROL", "reason": "Ergebnis in Steuerchat kopiert", "timestamp": "2026-09-11T10:20:05Z"}
