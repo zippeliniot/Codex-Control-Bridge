@@ -1,0 +1,28 @@
+schema_version: "1.0"
+kind: bridge_project_profile
+project_id: bess-platform
+description: BESS Platform (zippeliniot/bess-platform) - gesteuert ueber ChatGPT (Codex Connector).
+repository: bess-platform
+default_branch: main
+task_prefix: BESSPLT
+read_only: false
+executor: codex
+controller: openai
+github_repo: zippeliniot/bess-platform
+review_roles:
+  lead: openai
+  support: null
+allowed_machines: [HAM11, DES11]
+git_policy:
+  allow_push: true
+  allow_merge: false
+  allow_force_push: false
+  protected_branches: [main]
+test_policy:
+  command: null
+  required: false
+handover_policy:
+  branch: main
+  require_clean: true
+migration_policy:
+  allow_production: false

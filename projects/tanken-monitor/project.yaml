@@ -1,18 +1,17 @@
-# Projektprofil der Codex Control Bridge selbst.
 schema_version: "1.0"
 kind: bridge_project_profile
-project_id: codex-control-bridge
-description: Die Bridge selbst (Entwicklungsprojekt).
-repository: Codex-Control-Bridge
+project_id: tanken-monitor
+description: Tanken-Monitor (zippeliniot/tanken-monitor) - gesteuert ueber ChatGPT (Codex Connector).
+repository: tanken-monitor
 default_branch: main
-task_prefix: BRIDGE
+task_prefix: TANKEN
 read_only: false
-executor: claude-code
-controller: human
+executor: codex
+controller: openai
+github_repo: zippeliniot/tanken-monitor
 review_roles:
   lead: anthropic
-  support: openai
-github_repo: zippeliniot/Codex-Control-Bridge
+  support: null
 allowed_machines: [HAM11, DES11]
 git_policy:
   allow_push: true
@@ -20,8 +19,8 @@ git_policy:
   allow_force_push: false
   protected_branches: [main]
 test_policy:
-  command: "python -m unittest discover -s tests"
-  required: true
+  command: null
+  required: false
 handover_policy:
   branch: main
   require_clean: true

@@ -1,16 +1,26 @@
-# BEISPIEL/Vorlage für ein Projektprofil (Dorfschaft, read-only).
-# Der echte, operative Dorfschaft-Adapter folgt in BRIDGE-011.
+# Projektprofil Dorfschaft - jetzt schreibend, Codex-Executor unter ChatGPT-Kontrolle.
+# Aenderung vom 12.09.2026: read_only false->true auf ausdruecklichen Wunsch (Steuerchat-Sitzung).
+# Claude Code bleibt trotzdem aussen vor - CLAUDE.md Regel 3/machines.md Schutzbereich
+# schuetzen die Windows-native Claude-Code-Instanz vor WSL-Uebergriffen, unabhaengig
+# von diesem Profil. Schreibzugriff erfolgt ausschliesslich ueber Codex (WSL) unter
+# menschlich freigegebenen, eng gefassten permissions pro Auftrag (siehe CONTROL.md).
 schema_version: "1.0"
 kind: bridge_project_profile
 project_id: dorfschaft
-description: Referenzprojekt Dorfschaft - erste Integration ausschließlich lesend.
+description: Dorfschaft - Community-Verwaltungs-Webapp, gesteuert ueber ChatGPT (Codex Connector).
 repository: Dorfschaft
 default_branch: main
 task_prefix: DORF
-read_only: true
+read_only: false
+executor: codex
+controller: openai
+github_repo: zippeliniot/dorfschaft
+review_roles:
+  lead: anthropic
+  support: null
 allowed_machines: [HAM11, DES11]
 git_policy:
-  allow_push: false
+  allow_push: true
   allow_merge: false
   allow_force_push: false
   protected_branches: [main]
