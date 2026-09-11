@@ -1,0 +1,53 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0026
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: dffb8b035955e244b8249ca310b7768fba3d322d
+executor: claude-code
+started_at: '2026-09-11T10:01:06Z'
+ended_at: '2026-09-11T10:01:14Z'
+created_by: claude-code@unknown
+base_head: d2407b8
+commits:
+- sha: 364581bd6684e7dcdf1693fe7dae35cc89dd0a0a
+  message: 'Docs: Sofort-Push-Pflicht verschaerft (CLAUDE.md/CODEX.md/CONTROL.md)
+    - GitHub muss bei parallelen Projekten/Maschinen immer aktuell sein'
+- sha: 2c8cecd2e54b627d0bff5fc1b3b9b36355ed9ec3
+  message: 'Docs: Sofort-Push-Pflicht verschaerft (CLAUDE.md/CODEX.md/CONTROL.md)
+    - GitHub muss bei parallelen Projekten/Maschinen immer aktuell sein'
+- sha: 5db3ddfe685593a91c1714bcdda646193ddb2347
+  message: 'Docs: Orchestrator-Konzept (Diskussionsgrundlage, kein Code)'
+- sha: d6d3d066f7f6f0f37b3ce4e6a1c8fa3ee5eb50e4
+  message: 'BRIDGE-026: Work-Package spezifiziert (Gesamtuebersicht)'
+- sha: 83b2af2e1435ba2b669db80a29c4c8b194966723
+  message: 'Docs: Uebergabe v7 (7 Projektprofile, Dorfschaft schreibend, Sofort-Push-Regel,
+    Orchestrator-Konzept, BRIDGE-026 laufend)'
+- sha: d00836d03e4a4a7477d622399c8430e61db56435
+  message: 'BRIDGE-026 RUN-01 Schritt 1: bridge overview CLI + Web-UI Grundimplementierung'
+- sha: 189d0537e158bc2465ad5f32029badda3c6d8277
+  message: 'BRIDGE-026 RUN-01 Schritt 2: Tests fuer bridge overview (CLI + Web-UI)'
+- sha: dffb8b035955e244b8249ca310b7768fba3d322d
+  message: 'BRIDGE-026 RUN-01 Schritt 3: CCB-STEUERCHAT-REFERENZ.md aktualisiert'
+changed_files:
+- CLAUDE.md
+- CODEX.md
+- CONTROL.md
+- audit/audit.jsonl
+- docs/CCB-ORCHESTRATOR-KONZEPT.md
+- docs/CCB-STEUERCHAT-REFERENZ.md
+- docs/handover/CCB-UEBERGABE-v7.md
+- results/BRIDGE-0026/RUN-01/heartbeat.json
+- src/bridge/cli.py
+- src/bridge/webui.py
+- tasks/BRIDGE-0026/task.yaml
+- tests/test_cli.py
+- tests/test_webui.py
+- work-packages/BRIDGE-026.md
+summary: Neuer Befehl 'bridge overview' + Web-UI-Bereich zeigen alle Auftraege/Zustaende
+  inkl. RUNNING mit letzter bekannter Maschine, sortiert aktiv-oben/inaktiv-unten
+  ohne neuen Zustand im state-model. Bestehende Board-/Aktions-Funktionen unveraendert
+  erhalten. 89 neue+bestehende Tests gruen (259 Gesamtsuite).

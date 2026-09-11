@@ -115,20 +115,20 @@ Heartbeat seit X Minuten trotz `RUNNING`, oder Zustand
 
 ## Akzeptanzkriterien
 
-- [ ] `bridge overview` zeigt alle Aufträge, alle Zustände (inkl.
+- [x] `bridge overview` zeigt alle Aufträge, alle Zustände (inkl.
       `RUNNING`/`CLAIMED`, die das Board bewusst versteckt).
-- [ ] Maschine wird angezeigt, wo bekannt; `?` wo das `machine`-Feld fehlt
+- [x] Maschine wird angezeigt, wo bekannt; `?` wo das `machine`-Feld fehlt
       (kein Erfinden von Werten).
-- [ ] Aktive Aufträge oben, inaktive (Heartbeat-Schwelle oder
+- [x] Aktive Aufträge oben, inaktive (Heartbeat-Schwelle oder
       `WAITING_FOR_RESUME`/`INTERRUPTED`) unten — Schwelle dokumentiert,
       nicht willkürlich.
-- [ ] Web-UI zeigt dieselbe Übersicht zusätzlich zum bestehenden Board,
+- [x] Web-UI zeigt dieselbe Übersicht zusätzlich zum bestehenden Board,
       ersetzt nichts Bestehendes.
-- [ ] Bestehende Aktions-Funktionen (Kopiert→Review, Archivieren, Lauf
+- [x] Bestehende Aktions-Funktionen (Kopiert→Review, Archivieren, Lauf
       abschließen, Auto-Commit+Push, persistenter Log, Filter) unverändert
       funktionsfähig.
-- [ ] Kein neuer Zustand im `schemas/state-model.yaml`.
-- [ ] `CCB-STEUERCHAT-REFERENZ.md` aktualisiert.
-- [ ] Bestehende Tests weiterhin grün, neue Tests grün.
-- [ ] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
-- [ ] Jeder Commit sofort gepusht, nicht gesammelt (verschärfte Regel).
+- [x] Kein neuer Zustand im `schemas/state-model.yaml`.
+- [x] `CCB-STEUERCHAT-REFERENZ.md` aktualisiert.
+- [x] Bestehende Tests weiterhin grün, neue Tests grün.
+- [x] Alle Tests grün (bestehende Basis + neue), frischer Klon verifiziert.
+- [x] Jeder Commit sofort gepusht, nicht gesammelt (verschärfte Regel).
