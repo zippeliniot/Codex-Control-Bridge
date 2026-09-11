@@ -1,5 +1,4 @@
-# Projektprofil Dorfschaft - jetzt schreibend, Codex-Executor unter ChatGPT-Kontrolle.
-# Aenderung vom 12.09.2026: read_only false->true auf ausdruecklichen Wunsch (Steuerchat-Sitzung).
+# Projektprofil Dorfschaft - schreibend, Codex-Executor unter ChatGPT-Kontrolle.
 # Claude Code bleibt trotzdem aussen vor - CLAUDE.md Regel 3/machines.md Schutzbereich
 # schuetzen die Windows-native Claude-Code-Instanz vor WSL-Uebergriffen, unabhaengig
 # von diesem Profil. Schreibzugriff erfolgt ausschliesslich ueber Codex (WSL) unter
@@ -14,10 +13,10 @@ task_prefix: DORF
 read_only: false
 executor: codex
 controller: openai
-github_repo: zippeliniot/dorfschaft
 review_roles:
-  lead: anthropic
-  support: null
+  lead: openai
+  support: anthropic
+github_repo: zippeliniot/dorfschaft
 allowed_machines: [HAM11, DES11]
 git_policy:
   allow_push: true

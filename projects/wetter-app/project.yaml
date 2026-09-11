@@ -1,17 +1,17 @@
 schema_version: "1.0"
 kind: bridge_project_profile
 project_id: wetter-app
-description: Wetter-App (zippeliniot/wetter-app) - gesteuert ueber ChatGPT (Codex Connector).
+description: Wetter-App (zippeliniot/wetter-app) - gesteuert ueber Claude Code (Windows-nativ), menschlich kontrolliert.
 repository: wetter-app
 default_branch: main
 task_prefix: WETTER
 read_only: false
-executor: codex
-controller: openai
-github_repo: zippeliniot/wetter-app
+executor: claude-code
+controller: human
 review_roles:
   lead: anthropic
-  support: null
+  support: openai
+github_repo: zippeliniot/wetter-app
 allowed_machines: [HAM11, DES11]
 git_policy:
   allow_push: true

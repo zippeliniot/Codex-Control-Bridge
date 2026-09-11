@@ -1,17 +1,17 @@
 schema_version: "1.0"
 kind: bridge_project_profile
 project_id: climac
-description: CLIMAC (zippeliniot/climac) - gesteuert ueber ChatGPT (Codex Connector).
+description: CLIMAC (zippeliniot/climac) - gesteuert ueber Claude Code (Windows-nativ), menschlich kontrolliert.
 repository: climac
 default_branch: main
 task_prefix: CLIMAC
 read_only: false
-executor: codex
-controller: openai
-github_repo: zippeliniot/climac
+executor: claude-code
+controller: human
 review_roles:
   lead: anthropic
-  support: null
+  support: openai
+github_repo: zippeliniot/climac
 allowed_machines: [HAM11, DES11]
 git_policy:
   allow_push: true

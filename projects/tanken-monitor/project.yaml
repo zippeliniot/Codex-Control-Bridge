@@ -1,17 +1,17 @@
 schema_version: "1.0"
 kind: bridge_project_profile
 project_id: tanken-monitor
-description: Tanken-Monitor (zippeliniot/tanken-monitor) - gesteuert ueber ChatGPT (Codex Connector).
+description: Tanken-Monitor (zippeliniot/tanken-monitor) - gesteuert ueber Claude Code (Windows-nativ), menschlich kontrolliert.
 repository: tanken-monitor
 default_branch: main
 task_prefix: TANKEN
 read_only: false
-executor: codex
-controller: openai
-github_repo: zippeliniot/tanken-monitor
+executor: claude-code
+controller: human
 review_roles:
   lead: anthropic
-  support: null
+  support: openai
+github_repo: zippeliniot/tanken-monitor
 allowed_machines: [HAM11, DES11]
 git_policy:
   allow_push: true

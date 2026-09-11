@@ -8,10 +8,10 @@ task_prefix: BESSPLT
 read_only: false
 executor: codex
 controller: openai
-github_repo: zippeliniot/bess-platform
 review_roles:
   lead: openai
-  support: null
+  support: anthropic
+github_repo: zippeliniot/bess-platform
 allowed_machines: [HAM11, DES11]
 git_policy:
   allow_push: true
