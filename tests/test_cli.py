@@ -459,6 +459,200 @@ def _setup_git_repo_for_cli(tmp: Path) -> Path:
     return bare
 
 
+# --------------------------------------------------------------------------- #
+# bridge overview Tests (BRIDGE-026)
+# --------------------------------------------------------------------------- #
+
+class CliOverviewTests(unittest.TestCase):
+    """Prueft `bridge overview`: alle Zustaende inkl. RUNNING/CLAIMED,
+    Maschinen-Anzeige, Sortierung, --project-Filter (BRIDGE-026)."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="ccb-overview-"))
+        for name in ("tasks", "results", "audit"):
+            (self.tmp / name).mkdir()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write_yaml(self, name, doc):
+        path = self.tmp / name
+        path.write_text(yaml.safe_dump(doc), encoding="utf-8")
+        return path
+
+    def cli(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = main(["--root", str(self.tmp), "--schema-dir", str(SCHEMA_DIR), *args])
+        return code, out.getvalue(), err.getvalue()
+
+    def _make_task(self, task_id, target_status=None):
+        """Erstellt und optional weiterschalten eines Auftrags."""
+        path = self.write_yaml(f"{task_id}.yaml", task_doc(bridge_task_id=task_id))
+        self.cli("task", "create", str(path))
+        _STATUS_CHAIN = [
+            "CLAIMED", "RUNNING", "COMPLETED", "WAITING_FOR_COPY_TO_CONTROL",
+            "REVIEW_REQUIRED", "ARCHIVED",
+        ]
+        if target_status and target_status in _STATUS_CHAIN:
+            for st in _STATUS_CHAIN:
+                self.cli("task", "set-status", task_id, st, "--actor", "x")
+                if st == target_status:
+                    break
+
+    # Abgrenzungstest: overview zeigt RUNNING/CLAIMED, board versteckt sie
+    def test_overview_shows_running_claimed_hidden_from_board(self):
+        self._make_task("BRIDGE-0901")   # -> WAITING_FOR_HANDOFF_TO_EXECUTOR
+        self.cli("task", "set-status", "BRIDGE-0901", "CLAIMED", "--actor", "x")
+        self.cli("task", "set-status", "BRIDGE-0901", "RUNNING", "--actor", "x")
+
+        # board verbirgt RUNNING
+        _, board_out, _ = self.cli("board")
+        self.assertNotIn("BRIDGE-0901", board_out)
+        self.assertIn("(keine Auftraege warten auf Kopie)", board_out)
+
+        # overview zeigt RUNNING
+        code, out, _ = self.cli("overview")
+        self.assertEqual(code, 0)
+        self.assertIn("BRIDGE-0901", out)
+        self.assertIn("RUNNING", out)
+
+    def test_overview_shows_all_statuses(self):
+        self._make_task("BRIDGE-0901")   # WAITING_FOR_HANDOFF_TO_EXECUTOR
+        self._make_task("BRIDGE-0902", target_status="RUNNING")
+        self._make_task("BRIDGE-0903", target_status="WAITING_FOR_COPY_TO_CONTROL")
+        self._make_task("BRIDGE-0904", target_status="ARCHIVED")
+
+        code, out, _ = self.cli("overview")
+        self.assertEqual(code, 0)
+        self.assertIn("BRIDGE-0901", out)
+        self.assertIn("BRIDGE-0902", out)
+        self.assertIn("BRIDGE-0903", out)
+        self.assertIn("BRIDGE-0904", out)
+
+    # Sortierung: aktiver (RUNNING) oben, inaktiver (WAITING_FOR_RESUME) unten
+    def test_overview_sort_active_before_inactive(self):
+        from datetime import datetime, timezone, timedelta
+        from bridge.cli import _overview_rows
+        from bridge.store import Store
+
+        # BRIDGE-0901: RUNNING mit frischem Heartbeat -> aktiv
+        self._make_task("BRIDGE-0901", target_status="RUNNING")
+        hb_dir = self.tmp / "results" / "BRIDGE-0901" / "RUN-01"
+        hb_dir.mkdir(parents=True, exist_ok=True)
+        import json
+        now = datetime.now(timezone.utc)
+        (hb_dir / "heartbeat.json").write_text(json.dumps({
+            "kind": "bridge_heartbeat",
+            "bridge_task_id": "BRIDGE-0901",
+            "run_id": "RUN-01",
+            "last_seen": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }), encoding="utf-8")
+
+        # BRIDGE-0902: WAITING_FOR_RESUME -> immer inaktiv
+        self._make_task("BRIDGE-0902", target_status="RUNNING")
+        self.cli("task", "set-status", "BRIDGE-0902", "WAITING_FOR_RESUME", "--actor", "x")
+
+        store = Store(root=self.tmp, schema_dir=SCHEMA_DIR)
+        rows = _overview_rows(store, now=now)
+        ids = [r[0] for r in rows]
+        # BRIDGE-0901 (aktiv) muss vor BRIDGE-0902 (inaktiv) kommen
+        self.assertIn("BRIDGE-0901", ids)
+        self.assertIn("BRIDGE-0902", ids)
+        self.assertLess(ids.index("BRIDGE-0901"), ids.index("BRIDGE-0902"))
+
+    # Sortierung: RUNNING mit altem Heartbeat gilt als inaktiv
+    def test_overview_stale_heartbeat_is_inactive(self):
+        from datetime import datetime, timezone, timedelta
+        from bridge.cli import _overview_rows, _OVERVIEW_INACTIVE_THRESHOLD_MINUTES
+        from bridge.store import Store
+        import json
+
+        self._make_task("BRIDGE-0901", target_status="RUNNING")
+        hb_dir = self.tmp / "results" / "BRIDGE-0901" / "RUN-01"
+        hb_dir.mkdir(parents=True, exist_ok=True)
+        stale_ts = (datetime.now(timezone.utc)
+                    - timedelta(minutes=_OVERVIEW_INACTIVE_THRESHOLD_MINUTES + 5))
+        (hb_dir / "heartbeat.json").write_text(json.dumps({
+            "kind": "bridge_heartbeat",
+            "bridge_task_id": "BRIDGE-0901",
+            "run_id": "RUN-01",
+            "last_seen": stale_ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }), encoding="utf-8")
+
+        # BRIDGE-0902: RUNNING mit frischem Heartbeat
+        self._make_task("BRIDGE-0902", target_status="RUNNING")
+        hb_dir2 = self.tmp / "results" / "BRIDGE-0902" / "RUN-01"
+        hb_dir2.mkdir(parents=True, exist_ok=True)
+        now = datetime.now(timezone.utc)
+        (hb_dir2 / "heartbeat.json").write_text(json.dumps({
+            "kind": "bridge_heartbeat",
+            "bridge_task_id": "BRIDGE-0902",
+            "run_id": "RUN-01",
+            "last_seen": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }), encoding="utf-8")
+
+        store = Store(root=self.tmp, schema_dir=SCHEMA_DIR)
+        rows = _overview_rows(store, now=now)
+        ids = [r[0] for r in rows]
+        is_active = {r[0]: r[6] for r in rows}
+        # frischer HB -> aktiv, alter HB -> inaktiv
+        self.assertTrue(is_active.get("BRIDGE-0902"), "BRIDGE-0902 muss aktiv sein")
+        self.assertFalse(is_active.get("BRIDGE-0901"), "BRIDGE-0901 muss inaktiv sein (alter HB)")
+        self.assertLess(ids.index("BRIDGE-0902"), ids.index("BRIDGE-0901"))
+
+    # Fehlendes machine-Feld -> '?' (kein Erfinden)
+    def test_overview_missing_machine_shown_as_question_mark(self):
+        self._make_task("BRIDGE-0901")
+        code, out, _ = self.cli("overview")
+        self.assertEqual(code, 0)
+        self.assertIn("BRIDGE-0901", out)
+        self.assertIn("?", out)   # '?' bei fehlendem machine-Feld
+
+    # --project Filter
+    def test_overview_project_filter(self):
+        self._make_task("BRIDGE-0901")   # project_id = codex-control-bridge
+        path2 = self.write_yaml("T2.yaml", task_doc(
+            bridge_task_id="BRIDGE-0902", project_id="anderes-projekt"))
+        self.cli("task", "create", str(path2))
+
+        code, out, _ = self.cli("overview", "--project", "codex-control-bridge")
+        self.assertEqual(code, 0)
+        self.assertIn("BRIDGE-0901", out)
+        self.assertNotIn("BRIDGE-0902", out)
+
+    # Leerer Store -> kein Absturz
+    def test_overview_empty_store(self):
+        code, out, _ = self.cli("overview")
+        self.assertEqual(code, 0)
+        self.assertIn("(keine Auftraege)", out)
+
+    # Trennlinie erscheint nur wenn aktive und inaktive Auftraege gemischt sind
+    def test_overview_separator_between_active_and_inactive(self):
+        from datetime import datetime, timezone
+        import json
+        from bridge.cli import _overview_text, _overview_rows
+        from bridge.store import Store
+
+        self._make_task("BRIDGE-0901", target_status="RUNNING")
+        hb_dir = self.tmp / "results" / "BRIDGE-0901" / "RUN-01"
+        hb_dir.mkdir(parents=True, exist_ok=True)
+        now = datetime.now(timezone.utc)
+        (hb_dir / "heartbeat.json").write_text(json.dumps({
+            "kind": "bridge_heartbeat",
+            "bridge_task_id": "BRIDGE-0901",
+            "run_id": "RUN-01",
+            "last_seen": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }), encoding="utf-8")
+        self._make_task("BRIDGE-0902", target_status="ARCHIVED")
+
+        store = Store(root=self.tmp, schema_dir=SCHEMA_DIR)
+        rows = _overview_rows(store, now=now)
+        text = _overview_text(rows)
+        self.assertIn("--- inaktiv / unterbrochen ---", text)
+
+
 class CliCommitTests(unittest.TestCase):
     """Prueft das --commit-Flag auf den 5 Subcommands (BRIDGE-025).
 

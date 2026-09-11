@@ -203,6 +203,77 @@ class WebUiReadTests(WebUiBase):
         self.start()
         self.assertEqual(self.request("POST", "/api/board")[0], 404)   # kein POST-Ziel
         self.assertEqual(self.request("PUT", "/api/task/BRIDGE-0901/archive")[0], 405)
+
+    # -- /api/overview (BRIDGE-026) ----------------------------
+
+    def test_api_overview_returns_all_statuses_incl_running(self):
+        """overview zeigt RUNNING/CLAIMED (die das Board verbirgt) - Abgrenzungstest."""
+        self.make_task("BRIDGE-0901", "WAITING_FOR_COPY_TO_CONTROL")
+        self.make_task("BRIDGE-0902", "RUNNING")
+        self.make_task("BRIDGE-0903", "ARCHIVED")
+        self.start()
+        code, body = self.get("/api/overview")
+        self.assertEqual(code, 200)
+        data = json.loads(body)
+        self.assertIn("overview", data)
+        self.assertIn("inactive_threshold_minutes", data)
+        ids = [r["bridge_task_id"] for r in data["overview"]]
+        # Alle drei Auftraege muessen erscheinen (kein Zustandsfilter)
+        self.assertIn("BRIDGE-0901", ids)
+        self.assertIn("BRIDGE-0902", ids)
+        self.assertIn("BRIDGE-0903", ids)
+
+    def test_api_overview_running_not_in_board_but_in_overview(self):
+        """RUNNING erscheint in /api/overview, nicht im board-Bereich von /api/board."""
+        self.make_task("BRIDGE-0901", "RUNNING")
+        self.start()
+        # board verbirgt RUNNING
+        _, board_body = self.get("/api/board")
+        board_data = json.loads(board_body)
+        board_ids = [r["bridge_task_id"] for r in board_data["board"]]
+        self.assertNotIn("BRIDGE-0901", board_ids)
+        # overview zeigt RUNNING
+        _, ov_body = self.get("/api/overview")
+        ov_data = json.loads(ov_body)
+        ov_ids = [r["bridge_task_id"] for r in ov_data["overview"]]
+        self.assertIn("BRIDGE-0901", ov_ids)
+
+    def test_api_overview_missing_machine_is_question_mark(self):
+        """Fehlendes machine-Feld -> '?' (kein Erfinden von Werten)."""
+        self.make_task("BRIDGE-0901")
+        self.start()
+        _, body = self.get("/api/overview")
+        data = json.loads(body)
+        row = next(r for r in data["overview"] if r["bridge_task_id"] == "BRIDGE-0901")
+        self.assertEqual(row["machine"], "?")
+
+    def test_api_overview_active_task_is_active_flag_true(self):
+        """RUNNING mit frischem Heartbeat -> is_active=True in API-Antwort."""
+        import json as _json
+        from datetime import datetime, timezone
+        self.make_task("BRIDGE-0901", "RUNNING")
+        hb_dir = self.tmp / "results" / "BRIDGE-0901" / "RUN-01"
+        hb_dir.mkdir(parents=True, exist_ok=True)
+        now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        (hb_dir / "heartbeat.json").write_text(_json.dumps({
+            "kind": "bridge_heartbeat", "bridge_task_id": "BRIDGE-0901",
+            "run_id": "RUN-01", "last_seen": now_ts,
+        }), encoding="utf-8")
+        self.start()
+        _, body = self.get("/api/overview")
+        data = _json.loads(body)
+        row = next(r for r in data["overview"] if r["bridge_task_id"] == "BRIDGE-0901")
+        self.assertTrue(row["is_active"])
+
+    def test_page_html_contains_overview_section(self):
+        """Die HTML-Seite enthaelt die Gesamtuebersicht-Tabelle (kein separater GET noetig)."""
+        self.start()
+        code, body = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertIn("ov-table", body)
+        self.assertIn("/api/overview", body)
+        self.assertIn("renderOverview", body)
+        self.assertIn("lastOverviewData", body)
         self.assertEqual(self.request("DELETE", "/api/task/BRIDGE-0901/archive")[0], 405)
         self.assertEqual(self.get("/api/task/BRIDGE-0901/copied")[0], 404)  # GET auf POST-Ziel
         self.assertEqual(self.get("/nonsense")[0], 404)
