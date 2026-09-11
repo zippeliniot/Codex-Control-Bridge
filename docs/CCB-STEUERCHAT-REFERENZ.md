@@ -203,6 +203,7 @@ CREATED → RUNNING → COMPLETED → WAITING_FOR_COPY_TO_CONTROL
 | `audit show [<id>]` | Auditspur ausgeben (alle oder ein Auftrag) |
 | `resume <id>` | Wiederaufsetz-Hilfe, rein lesend |
 | `board [--watch] [--interval N]` | Copy-Paste-Board: welcher Auftrag wartet auf Kopie — **CLI-Version des Web-UI-Boards**, gleiche Zwei-Wartezustände-Logik |
+| `overview [--project <id>]` | **Gesamtübersicht:** alle Aufträge, alle Zustände (auch `RUNNING`/`CLAIMED`), mit letzter bekannter Maschine — aktive Aufträge oben, inaktive (kein HB seit 30 Min. oder `WAITING_FOR_RESUME`/`INTERRUPTED`) darunter |
 | `commands` | Befehlsreferenz mit aufgelöstem lokalem Pfad |
 | `validate` | Task/Result gegen Schema prüfen |
 | `next-run <id>` | nächste Lauf-ID ermitteln |
@@ -241,16 +242,26 @@ möglich.
 - **Board — wartet auf Weitergabe/Kopie:** ausschließlich Aufträge in
   `WAITING_FOR_HANDOFF_TO_EXECUTOR` oder `WAITING_FOR_COPY_TO_CONTROL`
   (Spalte „Richtung" zeigt welche). Läuft ein Auftrag gerade
-  (`RUNNING`/`CLAIMED`), erscheint er **nirgends** — das ist Absicht,
+  (`RUNNING`/`CLAIMED`), erscheint er dort **nicht** — das ist Absicht,
   nicht ein Bug (Regel 5 der Übergabe).
 - **Offene Aufträge außerhalb des Boards:** alle anderen nicht-terminalen
   Zustände (`REVIEW_REQUIRED` etc.), mit passenden Aktionen.
+- **Alle Projekte — Gesamtübersicht** (seit BRIDGE-026, Endpunkt
+  `GET /api/overview`): alle Aufträge über **alle** Zustände, inkl.
+  `RUNNING`/`CLAIMED` — genau was das Board bewusst versteckt. Spalten:
+  Projekt, Auftrag, Status, **Maschine** (letzte bekannte, `?` wo
+  kein `--machine`-Flag übergeben wurde), letzte Aktivität (Heartbeat-
+  Alter). Aktive Aufträge (`RUNNING`/`CLAIMED` + HB < 30 Min.) oben,
+  inaktive (staler HB, `WAITING_FOR_RESUME`, `INTERRUPTED`) darunter
+  mit Trennlinie. Der Client-Filter gilt auch hier. Dasselbe Ergebnis
+  wie `bridge overview --project <id>` im Terminal.
 - **Persistenter, scrollbarer Aktions-Log** (seit BRIDGE-023): jede
   ausgeführte Aktion mit Zeitstempel, Aktion, betroffener ID und
   Ergebnis — bleibt über Auto-Refresh-Ticks erhalten, wird **nicht**
   vom 15-Sekunden-Refresh überschrieben.
 - **Client-Filter** (seit BRIDGE-023): Projekt/Status/Auftrags-ID,
-  überlebt Auto-Refresh, kein neuer Server-Endpoint dahinter.
+  überlebt Auto-Refresh, kein neuer Server-Endpoint dahinter. Gilt
+  jetzt auch für die Gesamtübersicht.
 
 **Aktions-Buttons** (`Kopiert → Review`, `Archivieren`, `Lauf
 abschließen`): rufen serverseitig **dieselbe** Store-/Runner-Logik wie
