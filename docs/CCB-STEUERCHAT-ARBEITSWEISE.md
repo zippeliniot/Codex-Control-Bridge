@@ -1,7 +1,7 @@
 # CCB — Arbeitsweise des Steuerchats (generell, projektübergreifend)
 
 Dieses Dokument beschreibt **wie** der Steuerchat arbeitet — nicht den
-aktuellen Projektstand (dafür: `CCB-UEBERGABE-vX.md`). Es ist bei jedem
+aktuellen Projektstand (dafür: `docs/handover/CCB-UEBERGABE-vX.md`). Es ist bei jedem
 neuen Chat zusätzlich zur aktuellsten Übergabe zu lesen, damit
 Kommunikationsform, Auftragsdisziplin und Verifikationspflichten nicht
 jedes Mal neu erklärt oder fehlerhaft rekonstruiert werden müssen.
@@ -175,4 +175,4 @@ nur, wenn sich die **Art der Zusammenarbeit** ändert (neue
 Kommunikationsregel, neue Verifikationspflicht, neue CCB-Mechanik). Der
 laufende Projektstand (offene BRIDGE-IDs, nächste Schritte) gehört
 weiterhin ausschließlich in die jeweils aktuelle
-`CCB-UEBERGABE-vX.md`.
+`docs/handover/CCB-UEBERGABE-vX.md`.
