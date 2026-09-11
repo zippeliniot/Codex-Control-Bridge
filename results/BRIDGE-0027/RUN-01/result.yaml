@@ -1,0 +1,29 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0027
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: a0418e62ef43ae9157f104d0d87d9ba82532d9bf
+executor: claude-code
+started_at: '2026-09-11T17:43:25Z'
+ended_at: '2026-09-11T18:04:20Z'
+created_by: claude-code@unknown
+base_head: 529080b
+commits:
+- sha: 81ce22e0303ff587db541dfc8ed39f21934a7eec
+  message: 'BRIDGE-027: Work-Package spezifiziert'
+- sha: a0418e62ef43ae9157f104d0d87d9ba82532d9bf
+  message: 'BRIDGE-027 RUN-01: orchestrator_policy Projektfeld + Entscheidungen +
+    Tests'
+changed_files:
+- docs/CCB-ORCHESTRATOR-KONZEPT.md
+- schemas/project.schema.yaml
+- tests/test_profiles.py
+- work-packages/BRIDGE-027.md
+summary: orchestrator_policy Projektfeld in project.schema.yaml (analog review_roles,
+  FORCE_PUSH kategorisch ausgeschlossen), CCB-ORCHESTRATOR-KONZEPT.md um Entscheidungen
+  aus Steuerchat + Roadmap BRIDGE-0027..0031 ergaenzt, bestehende Projektprofile unveraendert
+  gueltig. 7 neue Tests, 38 gesamt OK.

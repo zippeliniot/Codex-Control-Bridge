@@ -1,0 +1,57 @@
+schema_version: '1.0'
+kind: bridge_task
+bridge_task_id: BRIDGE-0027
+project_id: codex-control-bridge
+title: Orchestrator-Grundbaustein 1 - orchestrator_policy Projektfeld + Entscheidungen
+  dokumentiert
+description: 'Neues, optionales Projektfeld orchestrator_policy in schemas/project.schema.yaml
+  (analog review_roles: Objekt, additionalProperties false, default null -> globaler
+  Standard). Enthaelt auto_trigger_permissions (Liste erlaubter Permission-Typen,
+  die ein kuenftiger Orchestrator-Prozess fuer dieses Projekt automatisch ausloesen
+  darf, ohne Menschenbestaetigung; Standard [READ_ONLY, WORKTREE_WRITE, TEST_EXECUTION]).
+  FORCE_PUSH ist aus dem Enum dieses Feldes kategorisch ausgeschlossen (bestehende,
+  nicht verhandelbare Sicherheitsleitplanke aus BRIDGE-024, keine Ausnahme ueber Projektkonfiguration
+  moeglich). Alle anderen kritischen Aktionen (GIT_PUSH, MERGE, DEPLOY, DATABASE_WRITE,
+  PR_CREATE) bleiben im Enum wählbar, damit ein Projekt sie bewusst freigeben KANN
+  - Standard bleibt konservativ (nur die drei ungefaehrlichen). Zusaetzlich: docs/CCB-ORCHESTRATOR-KONZEPT.md
+  um die in diesem Steuerchat getroffenen Entscheidungen zu allen drei offenen Fragen
+  ergaenzen (Frage 1: projektabhaengige Grenze, Frage 2: manuelle Prioritaets-Zuweisung
+  im Web-GUI mit eigenem CLI-Befehl, Frage 3: Web-UI als zentrale Mehrmaschinen-/Mehrprojekt-Steuerung,
+  Git-Push-Retry-Konzept fuer die gemeinsame audit.jsonl, Review-Unternummern-Schema
+  fuer Support-KI-Auftraege) sowie die geplante Umsetzungsreihenfolge BRIDGE-0027
+  bis BRIDGE-0031 als Roadmap festhalten. Ausdruecklich NICHT Teil dieses Auftrags:
+  die eigentliche Orchestrator-Ausloeselogik, der Prioritaets-Befehl, der Push-Retry-Mechanismus,
+  das Review-Unternummern-Pattern selbst - das sind eigene, spaetere Auftraege (BRIDGE-0028
+  bis BRIDGE-0031), damit die Ein-Auftrag-zur-Zeit-Disziplin eingehalten wird. Details
+  in work-packages/BRIDGE-027.md.'
+task_class: FEATURE
+repository: Codex-Control-Bridge
+branch: main
+git:
+  expected_head: 529080b
+permissions:
+- WORKTREE_WRITE
+- TEST_EXECUTION
+- GIT_PUSH
+depends_on: []
+acceptance_criteria:
+- orchestrator_policy Feld in schemas/project.schema.yaml, analog review_roles strukturiert
+  (Objekt, additionalProperties false, default null)
+- auto_trigger_permissions Liste mit Enum aus den bestehenden Permission-Werten, FORCE_PUSH
+  kategorisch ausgeschlossen
+- Default von auto_trigger_permissions ist [READ_ONLY, WORKTREE_WRITE, TEST_EXECUTION]
+  wenn Feld gesetzt aber auto_trigger_permissions fehlt
+- Projekt-YAML validiert weiterhin ohne das Feld (Feld ist optional, kein Pflichtfeld,
+  bestehende 7 project.yaml bleiben gueltig ohne Aenderung)
+- Mindestens ein Beispiel-Test validiert orchestrator_policy mit gesetztem auto_trigger_permissions
+  inkl. FORCE_PUSH als ungueltig (schema lehnt ab)
+- docs/CCB-ORCHESTRATOR-KONZEPT.md aktualisiert um alle drei Antworten aus diesem
+  Steuerchat plus Roadmap BRIDGE-0027 bis BRIDGE-0031
+- Kein Eingriff in schemas/state-model.yaml
+- Kein Eingriff in die eigentliche Ausloeselogik, keine neuen CLI-Befehle in diesem
+  Auftrag
+- Bestehende Tests weiterhin gruen, neue Tests gruen, frischer Klon verifiziert
+- Jeder Commit sofort gepusht, nicht gesammelt
+status: WAITING_FOR_COPY_TO_CONTROL
+created_at: '2026-09-11T00:00:00Z'
+created_by: browser-claude
