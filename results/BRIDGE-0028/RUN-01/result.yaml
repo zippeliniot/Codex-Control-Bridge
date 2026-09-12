@@ -1,0 +1,41 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0028
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: 3ec856a3a6c9e51d3bac76c4e435f13cf4d86087
+executor: claude-code
+started_at: '2026-09-12T17:00:10Z'
+ended_at: '2026-09-12T17:00:36Z'
+created_by: claude-code@unknown
+base_head: fb606c6
+commits:
+- sha: 02b36c3b3b1a1dcb8c392c252c1f9b1307371074
+  message: 'Work-Package BRIDGE-028: Prioritaetsfeld'
+- sha: c0d62c23e52b97ef4db059f48bda12fc87dec963
+  message: 'BRIDGE-028 RUN-01 Schritt 1: priority-Feld + Store-Methode + CLI + Web-UI
+    Grundimplementierung'
+- sha: 78d4ca536ca27f02549456776a69fa8a4593feb9
+  message: 'BRIDGE-028 RUN-01 Schritt 2: Tests fuer priority-Feld, Store-Methode,
+    CLI, Web-UI'
+- sha: 3ec856a3a6c9e51d3bac76c4e435f13cf4d86087
+  message: 'BRIDGE-028 RUN-01 Schritt 3: CCB-STEUERCHAT-REFERENZ.md aktualisiert'
+changed_files:
+- docs/CCB-STEUERCHAT-REFERENZ.md
+- schemas/audit-event.schema.yaml
+- schemas/task.schema.yaml
+- src/bridge/cli.py
+- src/bridge/store.py
+- src/bridge/webui.py
+- tests/test_cli.py
+- tests/test_store.py
+- tests/test_webui.py
+- work-packages/BRIDGE-028.md
+summary: Neues optionales Feld 'priority' (LOW/MEDIUM/HIGH, Default MEDIUM) in task.schema.yaml,
+  neuer Audit-event_type PRIORITY_CHANGED, neue Store-Methode + CLI-Befehl 'bridge
+  task set-priority', neuer Web-UI-Endpunkt fuer manuelle Zuweisung, Prioritaet als
+  Zusatzkriterium in der Overview-Sortierung (innerhalb Aktiv/Inaktiv-Gruppe) und
+  im Board (vor bridge_task_id). Kein Eingriff in state-model.yaml.

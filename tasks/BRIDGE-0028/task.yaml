@@ -1,0 +1,62 @@
+schema_version: '1.0'
+kind: bridge_task
+bridge_task_id: BRIDGE-0028
+project_id: codex-control-bridge
+title: Prioritätsfeld - Schema, CLI set-priority, Web-UI-Zuweisung, Sortierung
+description: 'Neues, optionales Feld priority in schemas/task.schema.yaml (Enum LOW/MEDIUM/HIGH,
+  Default MEDIUM, rueckwaertskompatibel - bestehende task.yaml ohne das Feld bleiben
+  valide). Neuer event_type PRIORITY_CHANGED in schemas/audit-event.schema.yaml (alt/neu-Wert
+  im bestehenden freien reason-Feld, kein Eingriff in old_state/new_state, die auf
+  Task-Status beschraenkt bleiben). Neue Store-Methode fuer den Prioritaetswechsel,
+  unabhaengig von state_machine/ set_status (Prioritaet ist kein Status-Uebergang).
+  Neuer CLI-Befehl "bridge task set-priority <id> <LOW|MEDIUM|HIGH> --actor <n>".
+  Neuer schreibender Web-UI-Endpunkt fuer manuelle Zuweisung nach den Grundentscheidungen
+  aus docs/CCB-ORCHESTRATOR-KONZEPT.md (Frage 2, BRIDGE-0027 dokumentiert): Stufen
+  LOW/MEDIUM/HIGH, Default MEDIUM, manuelle Zuweisung ueber das Web-GUI - gleiches
+  Sicherheitsmuster (confirm+actor+Same-Origin) wie die bestehenden drei Aktions-Endpunkte,
+  ruft dieselbe Store-Methode wie die CLI (kein Parallel-Code). Sortierung: in _overview_rows
+  Prioritaet als Zusatzkriterium INNERHALB der bestehenden Aktiv/Inaktiv-Gruppierung
+  (Gruppe bleibt primaer, Zeit bleibt finaler Tie-Breaker, Prioritaet dazwischen).
+  In _board_rows (das keine Aktiv/Inaktiv-Gruppierung kennt, nur bisher alphabetisch
+  nach bridge_task_id sortiert) Prioritaet vor bridge_task_id als Sortierkriterium
+  - explizit als Annahme benannt, vor Fertigstellung mit dem Steuerchat/Nutzer gegenchecken,
+  falls das nicht gewuenscht ist. Prioritaets-Spalte in CLI-Textausgabe (overview,
+  board) und Web-UI-Tabellen ergaenzen. docs/CCB-STEUERCHAT-REFERENZ.md (Schema-Abschnitt,
+  CLI-Referenz-Tabelle task, Web-UI-Referenz) entsprechend aktualisieren. Ausdruecklich
+  NICHT Teil dieses Auftrags: Git-Push-Retry (BRIDGE-0029), Review-Unternummern-Schema
+  (BRIDGE-0030), die eigentliche Orchestrator-Ausloeselogik (BRIDGE-0031). Details
+  in work-packages/BRIDGE-028.md.'
+task_class: FEATURE
+repository: Codex-Control-Bridge
+branch: main
+git:
+  expected_head: fb606c6
+permissions:
+- WORKTREE_WRITE
+- TEST_EXECUTION
+- GIT_PUSH
+depends_on: []
+acceptance_criteria:
+- priority-Feld in schemas/task.schema.yaml, Enum LOW/MEDIUM/HIGH, Default MEDIUM,
+  bestehende task.yaml ohne das Feld bleiben valide
+- PRIORITY_CHANGED in schemas/audit-event.schema.yaml event_type-Enum ergaenzt, kein
+  Eingriff in old_state/new_state
+- Neue Store-Methode fuer Prioritaetswechsel, unabhaengig von state_machine/ set_status,
+  fail-closed bei ungueltigem Wert
+- bridge task set-priority <id> <LOW|MEDIUM|HIGH> --actor <n> funktioniert, schreibt
+  Audit-Eintrag mit lesbarem reason (z.B. "LOW -> HIGH")
+- 'Web-UI: neuer Endpunkt fuer manuelle Prioritaets-Zuweisung, gleiches Sicherheitsmuster
+  (confirm+actor+Same-Origin) wie bestehende Aktions-Endpunkte, ruft dieselbe Store-Methode
+  wie die CLI'
+- '_overview_rows: Prioritaet als Zusatzkriterium innerhalb der bestehenden Aktiv/Inaktiv-Gruppierung,
+  Zeit bleibt finaler Tie-Breaker'
+- '_board_rows: Prioritaet vor bridge_task_id als Sortierkriterium (Annahme, vor Fertigstellung
+  mit Steuerchat/Nutzer gegenchecken)'
+- Prioritaets-Spalte in CLI-Textausgabe (overview, board) und Web-UI-Tabellen sichtbar
+- CCB-STEUERCHAT-REFERENZ.md aktualisiert (Schema, CLI, Web-UI)
+- Kein Eingriff in schemas/state-model.yaml
+- Bestehende Tests weiterhin gruen, neue Tests gruen, frischer Klon verifiziert
+- Jeder Commit sofort gepusht, nicht gesammelt
+status: WAITING_FOR_COPY_TO_CONTROL
+created_at: '2026-09-12T00:00:00Z'
+created_by: browser-claude
