@@ -138,6 +138,17 @@ properties:
     type: ["string", "null"]
     default: null
 
+  priority:
+    description: >-
+      Auftragspriorität. LOW/MEDIUM/HIGH (kein null — jeder Auftrag hat eine
+      Priorität; Standard MEDIUM greift, wenn das Feld fehlt). Rückwärts-
+      kompatibel: bestehende task.yaml-Dokumente ohne das Feld sind weiterhin
+      gültig (Default MEDIUM). Setzbar über 'bridge task set-priority'
+      (BRIDGE-0028), manuell über das Web-GUI.
+    type: string
+    enum: [LOW, MEDIUM, HIGH]
+    default: MEDIUM
+
   reasoning_level:
     description: "Denkstufe."
     type: ["string", "null"]

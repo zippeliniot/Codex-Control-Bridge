@@ -71,6 +71,12 @@ def _build_parser() -> argparse.ArgumentParser:
     tset.add_argument("--actor", required=True)
     tset.add_argument("--machine")
     tset.add_argument("--reason")
+    tprio = tsub.add_parser("set-priority",
+                            help="Prioritaet setzen (LOW/MEDIUM/HIGH, BRIDGE-028)")
+    tprio.add_argument("task_id")
+    tprio.add_argument("priority", choices=["LOW", "MEDIUM", "HIGH"])
+    tprio.add_argument("--actor", required=True)
+    tprio.add_argument("--machine")
 
     result = sub.add_parser("result", help="Ergebnisse verwalten")
     rsub = result.add_subparsers(dest="result_cmd", required=True)
@@ -247,6 +253,16 @@ def task_copied(store, task_id, actor):
                             reason="Ergebnis in Steuerchat kopiert")
 
 
+def task_set_priority(store, task_id, priority, actor, machine=None):
+    """Setzt die Prioritaet eines Auftrags. Gemeinsame Logik fuer
+    ``bridge task set-priority`` und den Web-Endpunkt.
+
+    Ruft ``store.set_priority`` auf (BRIDGE-028). Fail-closed bei ungueltiger
+    Prioritaet (StoreError) — kein stilles Ignorieren.
+    """
+    return store.set_priority(task_id, priority, actor, machine)
+
+
 def task_archive(store, task_id, actor, reason=None):
     """'Dieser Auftrag ist erledigt' -> ARCHIVED. Gemeinsame Logik fuer
     ``bridge task archive`` und den Web-Endpunkt.
@@ -313,6 +329,12 @@ def _cmd_task(args, store) -> int:
         event = store.set_status(args.task_id, args.new_state, actor=args.actor,
                                  machine=args.machine, reason=args.reason)
         print(f"OK: {args.task_id} {event['old_state']} -> {event['new_state']} "
+              f"({event['event_type']})")
+        return 0
+    if args.task_cmd == "set-priority":
+        event = task_set_priority(store, args.task_id, args.priority,
+                                  args.actor, getattr(args, "machine", None))
+        print(f"OK: {args.task_id} Prioritaet gesetzt: {event['reason']} "
               f"({event['event_type']})")
         return 0
     return 2  # vom Parser ausgeschlossen
@@ -421,6 +443,24 @@ _BOARD_DIRECTION = {
 }
 
 # --------------------------------------------------------------------------- #
+# Prioritaets-Hilfsfunktionen (BRIDGE-028)
+# --------------------------------------------------------------------------- #
+
+# Rang fuer Sortierung: hoechste Prioritaet = niedrigster Rang (sortiert oben).
+_PRIORITY_RANK = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+_PRIORITY_DEFAULT = "MEDIUM"
+
+
+def _task_priority(task: dict) -> str:
+    """Prioritaet eines Auftrags; Default MEDIUM wenn Feld fehlt (Altbestand)."""
+    return task.get("priority") or _PRIORITY_DEFAULT
+
+
+def _priority_rank(task: dict) -> int:
+    """Sortierschluessel fuer Prioritaet (0=HIGH, 1=MEDIUM, 2=LOW)."""
+    return _PRIORITY_RANK.get(_task_priority(task), 1)
+
+# --------------------------------------------------------------------------- #
 # Gemeinsame Konstanten fuer bridge overview (BRIDGE-026)
 # --------------------------------------------------------------------------- #
 
@@ -505,8 +545,9 @@ def _board_depends_note(store, task) -> str:
 def _board_rows(store, *, now=None):
     """Ermittelt die Board-Zeilen (reine Daten, keine Ausgabe).
 
-    Rueckgabe: nach bridge_task_id sortierte Liste von Tupeln
-    ``(task_id, projekt, fuehrung, richtung, wartezeit, hinweis)``.
+    Rueckgabe: sortierte Liste von Tupeln
+    ``(task_id, projekt, fuehrung, richtung, wartezeit, hinweis, prioritaet)``.
+    Sortierung: (Prioritaets_Rang, bridge_task_id) — Prioritaet vor ID (BRIDGE-028).
     """
     now = now or datetime.now(timezone.utc)
     rows = []
@@ -531,19 +572,21 @@ def _board_rows(store, *, now=None):
             _BOARD_DIRECTION[status],
             wait,
             _board_depends_note(store, task),
+            _task_priority(task),    # Prioritaet (BRIDGE-028)
+            _priority_rank(task),    # Hilfsspalte fuer Sortierung
         ))
-    rows.sort(key=lambda r: r[0])
-    return rows
+    rows.sort(key=lambda r: (r[7], r[0]))   # (Prioritaets_Rang, task_id)
+    return [r[:7] for r in rows]             # Hilfsspalte entfernen
 
 
 def _board_text(rows) -> str:
     """Baut aus den Board-Zeilen den Tabellentext (Einmal- und Watch-Modus)."""
     if not rows:
         return "(keine Auftraege warten auf Kopie)"
-    lines = [f"{'#':<3}{'Projekt':<13}{'Führung/Prüfung':<34}"
+    lines = [f"{'#':<3}{'Prio':<7}{'Projekt':<13}{'Führung/Prüfung':<34}"
              f"{'Auftrag':<13}{'Richtung':<24}Wartet seit"]
-    for i, (task_id, projekt, fuehrung, richtung, wait, note) in enumerate(rows, start=1):
-        line = f"{i:<3}{projekt:<13}{fuehrung:<34}{task_id:<13}{richtung:<24}{wait}"
+    for i, (task_id, projekt, fuehrung, richtung, wait, note, prio) in enumerate(rows, start=1):
+        line = f"{i:<3}{prio:<7}{projekt:<13}{fuehrung:<34}{task_id:<13}{richtung:<24}{wait}"
         if note:
             line = f"{line}  {note}"
         lines.append(line)
@@ -674,14 +717,16 @@ def _overview_task_info(store, task: dict, audit_info: dict,
 def _overview_rows(store, project_filter: "str | None" = None, now=None) -> list:
     """Alle Auftraege als Uebersichtszeilen, aktive oben, inaktive unten.
 
-    Rueckgabe: nach Aktivitaet sortierte Liste von Tupeln
-    ``(task_id, projekt, fuehrung, status, machine, letzter_hb_str, is_active)``.
+    Rueckgabe: nach Aktivitaet + Prioritaet sortierte Liste von Tupeln
+    ``(task_id, projekt, fuehrung, status, machine, letzter_hb_str, is_active,
+       prioritaet)``.
     Rein lesend, kein Zustandsfilter — Gegensatz zu ``_board_rows`` (BRIDGE-026).
 
-    Sortierung:
+    Sortierung (BRIDGE-028: Prioritaet als zweites Kriterium eingefuegt):
     - Gruppe 0 (aktiv): RUNNING/CLAIMED mit Heartbeat juenger als Schwelle
     - Gruppe 1 (alle anderen): inaktive, wartende, abgeschlossene
-    - Innerhalb jeder Gruppe: neueste Aktivitaet zuerst.
+    - Innerhalb jeder Gruppe: Prioritaet (HIGH > MEDIUM > LOW) zuerst,
+      dann neueste Aktivitaet als Tie-Breaker.
     """
     now = now or datetime.now(timezone.utc)
     audit_data = _overview_audit_scan(store)
@@ -697,6 +742,8 @@ def _overview_rows(store, project_filter: "str | None" = None, now=None) -> list
         last_act_str = _fmt_wait((now - last_act).total_seconds()) if last_act else "?"
         # Sortier-Timestamp: None -> epoch (kommt ans Ende der jeweiligen Gruppe)
         sort_ts = last_act.timestamp() if last_act is not None else 0.0
+        prio = _task_priority(task)
+        prio_rank = _priority_rank(task)
         rows_raw.append((
             task_id,
             _board_project(store, task),
@@ -705,25 +752,28 @@ def _overview_rows(store, project_filter: "str | None" = None, now=None) -> list
             machine,
             last_act_str,
             is_active,
+            prio,
             sort_ts,        # Hilfsspalte fuer Sortierung, wird am Ende entfernt
+            prio_rank,      # Hilfsspalte fuer Sortierung, wird am Ende entfernt
         ))
 
-    rows_raw.sort(key=lambda r: (0 if r[6] else 1, -r[7]))
-    return [r[:7] for r in rows_raw]
+    # (Aktiv-Gruppe, Prioritaets-Rang, -Zeitstempel)
+    rows_raw.sort(key=lambda r: (0 if r[6] else 1, r[9], -r[8]))
+    return [r[:8] for r in rows_raw]
 
 
 def _overview_text(rows) -> str:
     """Baut aus den Uebersichtszeilen den Tabellentext fuer die CLI."""
     if not rows:
         return "(keine Auftraege)"
-    lines = [f"{'#':<3}{'Projekt':<13}{'Auftrag':<13}{'Status':<30}"
+    lines = [f"{'#':<3}{'Prio':<7}{'Projekt':<13}{'Auftrag':<13}{'Status':<30}"
              f"{'Maschine':<14}{'Aktiv vor':<12}Fuehrung/Pruefung"]
     prev_active = None
-    for i, (task_id, projekt, fuehrung, status, machine, last_act_str, is_active) in \
+    for i, (task_id, projekt, fuehrung, status, machine, last_act_str, is_active, prio) in \
             enumerate(rows, start=1):
         if prev_active is True and not is_active:
             lines.append("--- inaktiv / unterbrochen ---")
-        line = (f"{i:<3}{projekt:<13}{task_id:<13}{status:<30}"
+        line = (f"{i:<3}{prio:<7}{projekt:<13}{task_id:<13}{status:<30}"
                 f"{machine:<14}{last_act_str:<12}{fuehrung}")
         lines.append(line)
         prev_active = is_active

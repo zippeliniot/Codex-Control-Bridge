@@ -40,6 +40,7 @@ properties:
       - RESULT_WRITTEN
       - COMMIT_CREATED
       - PUSH_COMPLETED
+      - PRIORITY_CHANGED
 
   timestamp:
     description: "Zeitpunkt des Ereignisses (ISO 8601 / RFC 3339)."

@@ -244,6 +244,34 @@ class Store:
         self.append_audit(event)
         return event
 
+    # Gueltige Prioritaetswerte (aus task.schema.yaml, Enum LOW/MEDIUM/HIGH).
+    _PRIORITY_VALUES = frozenset(("LOW", "MEDIUM", "HIGH"))
+
+    def set_priority(self, task_id, new_priority, actor, machine=None):
+        """Setzt die Prioritaet eines Auftrags (unabhaengig von set_status/state_machine).
+
+        Fail-closed: unbekannte task_id -> StoreError, ungueltige Prioritaet ->
+        StoreError. Schreibt einen PRIORITY_CHANGED-Audit-Eintrag mit
+        reason="<alt> -> <neu>".
+        """
+        task_id = self._check_id(task_id)
+        if new_priority not in self._PRIORITY_VALUES:
+            raise StoreError(
+                f"Ungueltige Prioritaet: {new_priority!r}. "
+                f"Erlaubt: {sorted(self._PRIORITY_VALUES)}"
+            )
+        task = self.load_task(task_id)
+        old_priority = task.get("priority", "MEDIUM")
+        task["priority"] = new_priority
+        self.save_task(task)
+        event = self._event(
+            "PRIORITY_CHANGED", task_id,
+            actor=actor, machine=machine,
+            reason=f"{old_priority} -> {new_priority}",
+        )
+        self.append_audit(event)
+        return event
+
     def next_run_id(self, task_id):
         task_id = self._check_id(task_id)
         run_dir = self._in_root(self.results_dir / task_id)

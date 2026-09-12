@@ -49,7 +49,7 @@ from bridge import gitops, importer, runner, state_machine
 from bridge.cli import (
     _BOARD_STATES, _board_rows, _fmt_wait, _list_task_docs,
     _overview_rows, _OVERVIEW_INACTIVE_THRESHOLD_MINUTES,
-    task_archive, task_copied,
+    task_archive, task_copied, task_set_priority,
 )
 from bridge.store import StoreError
 
@@ -65,7 +65,7 @@ _FINISH_TARGETS = ("COMPLETED", "FAILED", "BLOCKED", "REVIEW_REQUIRED",
                    "APPROVAL_REQUIRED")
 
 _BOARD_FIELDS = ("bridge_task_id", "projekt", "fuehrung", "richtung",
-                 "wartet_seit", "hinweis")
+                 "wartet_seit", "hinweis", "priority")
 
 # Fehlerklassen der Engine, die als "im aktuellen Zustand nicht erlaubt" gelten.
 _ENGINE_ERRORS = (StoreError, state_machine.TransitionError,
@@ -177,8 +177,9 @@ def overview_payload(store) -> dict:
             "machine": machine,
             "last_activity": last_activity,
             "is_active": is_active,
+            "priority": priority,
         }
-        for task_id, projekt, fuehrung, status, machine, last_activity, is_active in rows
+        for task_id, projekt, fuehrung, status, machine, last_activity, is_active, priority in rows
     ]
     return {
         "overview": overview,
@@ -243,6 +244,16 @@ def _apply_action(store, kind: str, task_id: str, body: dict) -> dict:
                 "old_state": event["old_state"], "new_state": event["new_state"],
                 "event_type": event["event_type"],
                 "git": git}
+
+    if kind == "priority":
+        priority = _require(body, "priority")
+        if priority not in ("LOW", "MEDIUM", "HIGH"):
+            raise _BadRequest(
+                f"Ungueltige Prioritaet: {priority!r}. Erlaubt: LOW, MEDIUM, HIGH")
+        event = task_set_priority(store, task_id, priority, actor)
+        # Prioritaetswechsel ist kein Store-Zustandswechsel -> kein Git-Commit
+        return {"ok": True, "task": task_id, "event_type": event["event_type"],
+                "reason": event.get("reason", "")}
 
     raise _BadRequest(f"Unbekannte Aktion: {kind}")
 
@@ -332,7 +343,7 @@ _PAGE = r"""<!doctype html>
 
 <h2>Board &ndash; wartet auf Weitergabe / Kopie</h2>
 <table id="board"><thead><tr>
-  <th>#</th><th>Projekt</th><th>F&uuml;hrung/Pr&uuml;fung</th>
+  <th>#</th><th>Prio</th><th>Projekt</th><th>F&uuml;hrung/Pr&uuml;fung</th>
   <th>Richtung</th><th>Auftrag</th><th>Wartet seit</th><th>Hinweis</th><th>Aktionen</th>
 </tr></thead><tbody></tbody></table>
 
@@ -360,7 +371,7 @@ _PAGE = r"""<!doctype html>
   <code>WAITING_FOR_RESUME</code>/<code>INTERRUPTED</code>.
 </p>
 <table id="ov-table"><thead><tr>
-  <th>#</th><th>Projekt</th><th>Auftrag</th><th>Status</th>
+  <th>#</th><th>Prio</th><th>Projekt</th><th>Auftrag</th><th>Status</th>
   <th>Maschine</th><th>Aktiv vor</th><th>F&uuml;hrung/Pr&uuml;fung</th>
 </tr></thead><tbody></tbody></table>
 
@@ -422,7 +433,7 @@ function renderTables() {
 
   document.querySelector("#board tbody").innerHTML = board.length
     ? board.map((r, i) => row([
-        i + 1, esc(r.projekt), esc(r.fuehrung), esc(r.richtung),
+        i + 1, esc(r.priority || "MEDIUM"), esc(r.projekt), esc(r.fuehrung), esc(r.richtung),
         "<span class='id'>" + esc(r.bridge_task_id) + "</span>",
         esc(r.wartet_seit), esc(r.hinweis), actionButtons(r.bridge_task_id)(r.actions)])).join("")
     : row(["<span class='empty'>keine passenden Auftr&auml;ge</span>"]);
@@ -437,6 +448,14 @@ function renderTables() {
 
 // BRIDGE-026: Gesamtuebersicht-Tabelle rendern.
 // Dieselbe filterState-Logik wie renderTables() — Filter/Fokus bleibt beim Refresh erhalten.
+// BRIDGE-028: Prioritaets-Spalte mit <select> fuer manuelle Zuweisung.
+function prioSelect(id, current) {
+  var p = current || "MEDIUM";
+  return "<select data-prio-id='" + esc(id) + "' title='Prioritaet'>"
+    + ["HIGH","MEDIUM","LOW"].map(function(v) {
+        return "<option" + (v === p ? " selected" : "") + ">" + v + "</option>";
+      }).join("") + "</select>";
+}
 function renderOverview() {
   const f = {projekt: filterState.projekt, status: filterState.status, id: filterState.id};
   const rows = filterRows(lastOverviewData, f);
@@ -444,10 +463,10 @@ function renderOverview() {
   let prevActive = null;
   rows.forEach(function(r, i) {
     if (prevActive === true && !r.is_active) {
-      cells.push("<tr class='ov-sep'><td colspan='7'>&mdash; inaktiv / unterbrochen &mdash;</td></tr>");
+      cells.push("<tr class='ov-sep'><td colspan='8'>&mdash; inaktiv / unterbrochen &mdash;</td></tr>");
     }
     cells.push(row([
-      i + 1, esc(r.projekt),
+      i + 1, prioSelect(r.bridge_task_id, r.priority), esc(r.projekt),
       "<span class='id'>" + esc(r.bridge_task_id) + "</span>",
       esc(r.status), esc(r.machine), esc(r.last_activity), esc(r.fuehrung)
     ]));
@@ -584,6 +603,35 @@ document.addEventListener("click", ev => {
   const btn = ev.target.closest("button[data-act]");
   if (btn) post(btn.dataset.act, btn.dataset.id);
 });
+
+// BRIDGE-028: Prioritaets-Aenderung ueber <select> in der Uebersicht.
+document.addEventListener("change", async ev => {
+  const sel = ev.target.closest("select[data-prio-id]");
+  if (!sel) return;
+  const id = sel.dataset.prioId;
+  const priority = sel.value;
+  const actor = document.getElementById("actor").value.trim();
+  if (!actor) { flash("Bitte zuerst einen Akteur (actor) eintragen.", "err"); return; }
+  try {
+    const res = await fetch("/api/task/" + encodeURIComponent(id) + "/priority", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({actor: actor, confirm: true, priority: priority})
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      flash("Prioritaet Fehler: " + (data.error || "HTTP " + res.status), "err");
+      addLog("priority", id, false, data.error || "HTTP " + res.status);
+    } else {
+      flash("OK: " + id + " Prioritaet " + data.reason, "ok");
+      addLog("priority", id, true, data.reason || priority);
+      refresh();
+    }
+  } catch(e) {
+    flash("Netzwerkfehler: " + e.message, "err");
+    addLog("priority", id, false, "Netzwerkfehler: " + e.message);
+  }
+});
 refresh();
 setInterval(refresh, REFRESH_MS);
 </script>
@@ -675,7 +723,7 @@ class _Handler(BaseHTTPRequestHandler):
         return data
 
     _POST_ROUTES = {
-        "task": {"copied": "copied", "archive": "archive"},
+        "task": {"copied": "copied", "archive": "archive", "priority": "priority"},
         "run": {"finish": "finish"},
     }
 
