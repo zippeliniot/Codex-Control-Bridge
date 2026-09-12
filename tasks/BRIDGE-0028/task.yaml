@@ -57,6 +57,6 @@ acceptance_criteria:
 - Kein Eingriff in schemas/state-model.yaml
 - Bestehende Tests weiterhin gruen, neue Tests gruen, frischer Klon verifiziert
 - Jeder Commit sofort gepusht, nicht gesammelt
-status: WAITING_FOR_COPY_TO_CONTROL
+status: REVIEW_REQUIRED
 created_at: '2026-09-12T00:00:00Z'
 created_by: browser-claude
