@@ -108,7 +108,9 @@ jeder Sitzung, im Gegensatz zu den übrigen Dokumenten hier.
   (`bridge_task_id`, `project_id`, `title`, `description`, `task_class`,
   `repository`, `branch`, `permissions`, `status`, `created_at`,
   `created_by`, `acceptance_criteria`, optional `git.expected_head`,
-  `depends_on`).
+  `depends_on`). Optionales Feld `priority` (Enum `LOW`/`MEDIUM`/`HIGH`,
+  Default `MEDIUM`; kein `null` — jeder Auftrag hat eine Priorität;
+  setzbar über `bridge task set-priority`, BRIDGE-028).
 - **`schemas/state-model.yaml`** — die **einzige** Quelle der erlaubten
   Zustandsübergänge (siehe Teil 2 unten, vollständig wiedergegeben).
 - Weitere Schema-Dateien je nach Bedarf des Auftrags über `ls schemas/`
@@ -181,6 +183,7 @@ CREATED → RUNNING → COMPLETED → WAITING_FOR_COPY_TO_CONTROL
 | `task list` | alle Aufträge mit Status | — |
 | `task copied <id>` | Ergebnis „in Steuerchat kopiert" (Executor→Steuerchat-Wartepunkt auflösen) | `--actor` (Pflicht), `--commit` |
 | `task archive <id>` | Auftrag archivieren (Endzustand) | `--actor`, `--reason`, `--commit` |
+| `task set-priority <id> <LOW\|MEDIUM\|HIGH>` | Priorität setzen (BRIDGE-028) | `--actor` (Pflicht) |
 | `task set-status <id> <status>` | direkter Zustandswechsel (Ausnahme, nicht Regelweg) | `--actor`, `--machine`, `--reason` |
 
 ### `run` — Lauf-Lebenszyklus
@@ -273,6 +276,15 @@ Datei-Whitelist pro Aktionstyp, Branch-Prüfung (nur `main`) und
 kategorisches `--force`-Verbot. Der Log-Eintrag zeigt das Ergebnis
 direkt (`→ committed <sha>, gepusht` bzw. Fehlertext bei
 Push-Fehlschlag, Commit bleibt dann lokal).
+
+**Prioritätszuweisung** (seit BRIDGE-028): In der Gesamtübersicht
+(`/api/overview`) enthält jede Auftragszeile ein `<select>`-Dropdown
+(`HIGH`/`MEDIUM`/`LOW`). Eine Änderung sendet `POST
+/api/task/<id>/priority` mit `{actor, confirm: true, priority}` und
+schreibt denselben `Store.set_priority()`-Aufruf wie `bridge task
+set-priority` — kein Parallel-Code. Prioritätsänderungen lösen **keinen**
+Auto-Commit/Push aus (kein Zustandswechsel, nur Metadaten-Update).
+Fehlende Priorität in bestehenden Aufträgen wird als `MEDIUM` angezeigt.
 
 **Wichtige Grenze, die in dieser Sitzung real zu Verwirrung führte:**
 Die Web-UI zeigt **ausschließlich den Store-Zustand** — den Inhalt von
