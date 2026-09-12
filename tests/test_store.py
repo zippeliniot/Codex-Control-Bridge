@@ -228,6 +228,60 @@ class StoreTests(unittest.TestCase):
         with self.assertRaises(StoreError):
             self.store.next_run_id("BRIDGE-0900/../../evil")
 
+    # -- set_priority (BRIDGE-028) -------------------------------------------
+
+    def test_set_priority_changes_field_and_writes_audit(self):
+        """set_priority schreibt das Feld und einen PRIORITY_CHANGED-Eintrag."""
+        self.store.create_task(valid_task())
+        event = self.store.set_priority("BRIDGE-0900", "HIGH", actor="test")
+        self.assertEqual(event["event_type"], "PRIORITY_CHANGED")
+        self.assertEqual(event["reason"], "MEDIUM -> HIGH")
+        task = self.store.load_task("BRIDGE-0900")
+        self.assertEqual(task["priority"], "HIGH")
+        self.assertIn("PRIORITY_CHANGED", self.event_types())
+
+    def test_set_priority_readable_reason_format(self):
+        """reason enthaelt den alten und neuen Wert lesbar (z.B. 'MEDIUM -> LOW')."""
+        self.store.create_task(valid_task())
+        event = self.store.set_priority("BRIDGE-0900", "LOW", actor="test")
+        self.assertIn("->", event["reason"])
+        old, new = event["reason"].split("->")
+        self.assertEqual(old.strip(), "MEDIUM")   # Default
+        self.assertEqual(new.strip(), "LOW")
+
+    def test_set_priority_invalid_value_rejected(self):
+        """Ungueltige Prioritaet wird fail-closed abgelehnt."""
+        self.store.create_task(valid_task())
+        with self.assertRaises(StoreError):
+            self.store.set_priority("BRIDGE-0900", "URGENT", actor="test")
+        # Auftrags-Feld unveraendert
+        task = self.store.load_task("BRIDGE-0900")
+        self.assertNotIn("priority", task)
+
+    def test_set_priority_unknown_task_rejected(self):
+        """Unbekannte task_id -> StoreError (fail-closed)."""
+        with self.assertRaises(StoreError):
+            self.store.set_priority("BRIDGE-9999", "HIGH", actor="test")
+
+    def test_task_priority_field_optional_default_medium(self):
+        """Bestehende task.yaml ohne priority-Feld bleibt gueltig (Default MEDIUM)."""
+        doc = valid_task()
+        self.assertNotIn("priority", doc)
+        # validate darf keinen Fehler werfen
+        self.store.validate(doc)
+
+    def test_task_priority_valid_values_accepted(self):
+        """Schema akzeptiert priority: LOW, MEDIUM, HIGH."""
+        for val in ("LOW", "MEDIUM", "HIGH"):
+            doc = valid_task(priority=val)
+            self.store.validate(doc)   # kein Fehler
+
+    def test_task_priority_invalid_value_rejected_by_schema(self):
+        """Schema lehnt ungueltige priority-Werte ab (fail-closed)."""
+        doc = valid_task(priority="URGENT")
+        with self.assertRaises(SchemaValidationError):
+            self.store.validate(doc)
+
 
 class IdFormatTests(unittest.TestCase):
     """BRIDGE-015: <PRAEFIX bis 8 Grossbuchstaben>-<4 Ziffern>."""

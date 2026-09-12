@@ -295,6 +295,55 @@ class WebUiReadTests(WebUiBase):
         self.start()
         self.assertEqual(self.httpd.server_address[0], "127.0.0.1")
 
+    # -- /api/overview priority field (BRIDGE-028) -----------------
+
+    def test_api_overview_includes_priority_field(self):
+        """overview-Payload enthaelt priority-Feld pro Zeile (BRIDGE-028)."""
+        path = self.tmp / "BRIDGE-0901.yaml"
+        path.write_text(yaml.safe_dump(task_doc(
+            bridge_task_id="BRIDGE-0901", priority="HIGH")), encoding="utf-8")
+        self.cli("task", "create", str(path))
+        self.start()
+        code, body = self.get("/api/overview")
+        self.assertEqual(code, 200)
+        data = json.loads(body)
+        row = next(r for r in data["overview"] if r["bridge_task_id"] == "BRIDGE-0901")
+        self.assertEqual(row["priority"], "HIGH")
+
+    def test_api_overview_missing_priority_defaults_to_medium(self):
+        """Auftraege ohne priority-Feld liefern MEDIUM als Default im overview-Payload."""
+        self.make_task("BRIDGE-0901")   # kein priority-Feld
+        self.start()
+        code, body = self.get("/api/overview")
+        data = json.loads(body)
+        row = next(r for r in data["overview"] if r["bridge_task_id"] == "BRIDGE-0901")
+        self.assertEqual(row["priority"], "MEDIUM")
+
+    def test_api_board_includes_priority_field(self):
+        """board-Payload enthaelt priority-Feld (BRIDGE-028)."""
+        path = self.tmp / "BRIDGE-0901.yaml"
+        path.write_text(yaml.safe_dump(task_doc(
+            bridge_task_id="BRIDGE-0901", priority="LOW")), encoding="utf-8")
+        self.cli("task", "create", str(path))
+        self.start()
+        code, body = self.get("/api/board")
+        data = json.loads(body)
+        row = data["board"][0]
+        self.assertEqual(row["priority"], "LOW")
+
+    def test_page_html_contains_priority_select(self):
+        """HTML der Web-UI enthaelt einen <select> fuer Prioritaets-Zuweisung."""
+        self.start()
+        code, body = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertIn("data-prio-id", body)   # JS-Attribut fuer <select>
+
+    def test_page_html_contains_priority_column_header(self):
+        """HTML der Web-UI enthaelt eine Prio-Spaltenüberschrift in den Tabellen."""
+        self.start()
+        code, body = self.get("/")
+        self.assertIn("Prio", body)
+
 
 class WebUiActionTests(WebUiBase):
     """RUN-02: POST-Endpunkte task copied / archive / run finish."""
@@ -432,6 +481,72 @@ class WebUiActionTests(WebUiBase):
         self.assertIn("REVIEW_REQUIRED", out)
         self.assertEqual(self.status_of("BRIDGE-0901"), "REVIEW_REQUIRED")
 
+    # -- POST /api/task/<id>/priority (BRIDGE-028) ----------------
+
+    def test_priority_endpoint_success(self):
+        """POST /api/task/<id>/priority aendert das Feld und gibt ok:true zurueck."""
+        self.make_task("BRIDGE-0901")
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/priority",
+                                    {"actor": "test", "confirm": True, "priority": "HIGH"})
+        self.assertEqual(code, 200)
+        self.assertTrue(data.get("ok"))
+        self.assertEqual(data["event_type"], "PRIORITY_CHANGED")
+        # Store-Feld tatsaechlich geaendert
+        task = self.store.load_task("BRIDGE-0901")
+        self.assertEqual(task["priority"], "HIGH")
+
+    def test_priority_endpoint_writes_audit_entry(self):
+        """Nach dem Endpunkt-Aufruf steht PRIORITY_CHANGED in audit.jsonl."""
+        self.make_task("BRIDGE-0901")
+        self.start()
+        self.post_json("/api/task/BRIDGE-0901/priority",
+                       {"actor": "test", "confirm": True, "priority": "LOW"})
+        types = [e["event_type"] for e in self.audit_lines()]
+        self.assertIn("PRIORITY_CHANGED", types)
+
+    def test_priority_endpoint_missing_confirm_is_400(self):
+        """Fehlende Bestaetigungspflicht -> HTTP 400."""
+        self.make_task("BRIDGE-0901")
+        self.start()
+        code, _ = self.post_json("/api/task/BRIDGE-0901/priority",
+                                 {"actor": "test", "priority": "HIGH"})
+        self.assertEqual(code, 400)
+
+    def test_priority_endpoint_missing_actor_is_400(self):
+        """Fehlender actor -> HTTP 400."""
+        self.make_task("BRIDGE-0901")
+        self.start()
+        code, _ = self.post_json("/api/task/BRIDGE-0901/priority",
+                                 {"actor": "   ", "confirm": True, "priority": "HIGH"})
+        self.assertEqual(code, 400)
+
+    def test_priority_endpoint_invalid_value_is_400(self):
+        """Ungueltiger Prioritaetswert -> HTTP 400."""
+        self.make_task("BRIDGE-0901")
+        self.start()
+        code, data = self.post_json("/api/task/BRIDGE-0901/priority",
+                                    {"actor": "test", "confirm": True, "priority": "URGENT"})
+        self.assertEqual(code, 400)
+        # Kein stilles Ignorieren: Store unveraendert
+        task = self.store.load_task("BRIDGE-0901")
+        self.assertNotIn("priority", task)
+
+    def test_priority_endpoint_same_store_as_cli(self):
+        """Web-UI-Endpunkt und CLI nutzen dieselbe Store-Methode (kein Parallel-Code)."""
+        self.make_task("BRIDGE-0901")
+        self.start()
+        # CLI setzt auf HIGH
+        self.cli("task", "set-priority", "BRIDGE-0901", "HIGH", "--actor", "cli")
+        task_cli = self.store.load_task("BRIDGE-0901")
+        # Web-UI setzt auf LOW
+        self.post_json("/api/task/BRIDGE-0901/priority",
+                       {"actor": "webui", "confirm": True, "priority": "LOW"})
+        task_webui = self.store.load_task("BRIDGE-0901")
+        # Beide haben das gleiche Feld beschrieben
+        self.assertEqual(task_cli["priority"], "HIGH")
+        self.assertEqual(task_webui["priority"], "LOW")
+
 
 _NODE = shutil.which("node")
 
@@ -494,9 +609,12 @@ class WebUiFrontendTests(unittest.TestCase):
         self.assertIn("filterState", render)
 
     def test_no_new_server_route(self):
-        # board_payload-Keys und POST-Routen unveraendert (kein neuer Endpoint).
+        # POST-Routen: task und run (BRIDGE-028 fuegt priority hinzu, run unveraendert).
         self.assertEqual(set(webui._Handler._POST_ROUTES), {"task", "run"})
-        self.assertEqual(webui._Handler._POST_ROUTES["task"], {"copied": "copied", "archive": "archive"})
+        # BRIDGE-028: priority-Route hinzugefuegt (kein Git-Commit/Push, nur Store-Feld)
+        self.assertIn("copied", webui._Handler._POST_ROUTES["task"])
+        self.assertIn("archive", webui._Handler._POST_ROUTES["task"])
+        self.assertIn("priority", webui._Handler._POST_ROUTES["task"])
         self.assertEqual(webui._Handler._POST_ROUTES["run"], {"finish": "finish"})
 
     # -- seiteneffektfreie Logik per node ------------------------

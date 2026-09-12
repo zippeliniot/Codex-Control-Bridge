@@ -273,7 +273,9 @@ class CliTests(unittest.TestCase):
             "t.yaml", task_doc(bridge_task_id="BRIDGE-0901"))))
         code, out, _ = self.cli("board")
         self.assertEqual(code, 0)
-        self.assertTrue(out.splitlines()[1].startswith("1  BRIDGE"))
+        # BRIDGE-028: Prio-Spalte vor Projekt-Spalte; Zeile: "1  MEDIUM BRIDGE..."
+        second_line = out.splitlines()[1]
+        self.assertTrue("BRIDGE" in second_line, second_line)
 
     def test_board_depends_on_note_when_not_archived(self):
         self.cli("task", "create", str(self.write_yaml(
@@ -651,6 +653,122 @@ class CliOverviewTests(unittest.TestCase):
         rows = _overview_rows(store, now=now)
         text = _overview_text(rows)
         self.assertIn("--- inaktiv / unterbrochen ---", text)
+
+
+class CliPriorityTests(unittest.TestCase):
+    """Prueft 'bridge task set-priority' und Prioritaets-Sortierung (BRIDGE-028)."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="ccb-prio-"))
+        for name in ("tasks", "results", "audit"):
+            (self.tmp / name).mkdir()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write_yaml(self, name, doc):
+        path = self.tmp / name
+        path.write_text(yaml.safe_dump(doc), encoding="utf-8")
+        return path
+
+    def cli(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = main(["--root", str(self.tmp), "--schema-dir", str(SCHEMA_DIR), *args])
+        return code, out.getvalue(), err.getvalue()
+
+    def _make_task(self, task_id, **extra):
+        path = self.write_yaml(f"{task_id}.yaml",
+                               task_doc(bridge_task_id=task_id, **extra))
+        self.cli("task", "create", str(path))
+
+    def test_set_priority_changes_field_and_exits_0(self):
+        """set-priority setzt das Feld und gibt Exit 0 zurueck."""
+        self._make_task("BRIDGE-0901")
+        code, out, err = self.cli("task", "set-priority", "BRIDGE-0901", "HIGH",
+                                  "--actor", "test")
+        self.assertEqual(code, 0, err)
+        self.assertIn("HIGH", out)
+
+    def test_set_priority_writes_audit_entry(self):
+        """Nach set-priority steht PRIORITY_CHANGED in der Auditspur."""
+        from bridge.store import Store
+        self._make_task("BRIDGE-0901")
+        self.cli("task", "set-priority", "BRIDGE-0901", "HIGH", "--actor", "test")
+        store = Store(root=self.tmp, schema_dir=SCHEMA_DIR)
+        import json
+        events = [json.loads(l) for l in
+                  (self.tmp / "audit" / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+                  if l.strip()]
+        types = [e["event_type"] for e in events]
+        self.assertIn("PRIORITY_CHANGED", types)
+
+    def test_set_priority_invalid_value_rejected(self):
+        """Ungueltige Prioritaet wird mit Exit 2 (usage-Fehler) abgelehnt."""
+        self._make_task("BRIDGE-0901")
+        code, _, _ = self.cli("task", "set-priority", "BRIDGE-0901", "URGENT",
+                               "--actor", "test")
+        self.assertNotEqual(code, 0)
+
+    def test_overview_sort_high_before_low_same_group(self):
+        """Innerhalb der inaktiven Gruppe: HIGH sortiert vor LOW."""
+        from bridge.cli import _overview_rows
+        from bridge.store import Store
+        # Beide WAITING_FOR_HANDOFF (inaktiv)
+        self._make_task("BRIDGE-0901", priority="LOW")
+        self._make_task("BRIDGE-0902", priority="HIGH")
+        store = Store(root=self.tmp, schema_dir=SCHEMA_DIR)
+        rows = _overview_rows(store)
+        ids = [r[0] for r in rows]
+        self.assertLess(ids.index("BRIDGE-0902"), ids.index("BRIDGE-0901"),
+                        f"HIGH (0902) soll vor LOW (0901) stehen, war: {ids}")
+
+    def test_board_sort_high_before_low(self):
+        """Im Board: HIGH-Auftrag steht vor LOW-Auftrag (beide WAITING_FOR_HANDOFF)."""
+        from bridge.cli import _board_rows
+        from bridge.store import Store
+        self._make_task("BRIDGE-0901", priority="LOW")
+        self._make_task("BRIDGE-0902", priority="HIGH")
+        store = Store(root=self.tmp, schema_dir=SCHEMA_DIR)
+        rows = _board_rows(store)
+        ids = [r[0] for r in rows]
+        self.assertLess(ids.index("BRIDGE-0902"), ids.index("BRIDGE-0901"),
+                        f"HIGH (0902) soll vor LOW (0901) stehen, war: {ids}")
+
+    def test_board_sort_task_id_tiebreaker_same_priority(self):
+        """Bei gleicher Prioritaet bleibt bridge_task_id der Tie-Breaker."""
+        from bridge.cli import _board_rows
+        from bridge.store import Store
+        self._make_task("BRIDGE-0901", priority="MEDIUM")
+        self._make_task("BRIDGE-0902", priority="MEDIUM")
+        store = Store(root=self.tmp, schema_dir=SCHEMA_DIR)
+        rows = _board_rows(store)
+        ids = [r[0] for r in rows]
+        self.assertEqual(ids, sorted(ids))   # alphabetisch bei gleicher Prio
+
+    def test_priority_column_in_board_text(self):
+        """board-Textausgabe enthaelt die Prioritaets-Spalte."""
+        self._make_task("BRIDGE-0901", priority="HIGH")
+        code, out, _ = self.cli("board")
+        self.assertEqual(code, 0)
+        self.assertIn("HIGH", out)
+
+    def test_priority_column_in_overview_text(self):
+        """overview-Textausgabe enthaelt die Prioritaets-Spalte."""
+        self._make_task("BRIDGE-0901", priority="LOW")
+        code, out, _ = self.cli("overview")
+        self.assertEqual(code, 0)
+        self.assertIn("LOW", out)
+
+    def test_task_without_priority_defaults_to_medium_in_overview(self):
+        """Auftraege ohne priority-Feld zeigen MEDIUM als Default an."""
+        self._make_task("BRIDGE-0901")  # kein priority-Feld
+        from bridge.cli import _overview_rows
+        from bridge.store import Store
+        store = Store(root=self.tmp, schema_dir=SCHEMA_DIR)
+        rows = _overview_rows(store)
+        self.assertEqual(rows[0][7], "MEDIUM")
 
 
 class CliCommitTests(unittest.TestCase):
