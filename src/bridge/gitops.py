@@ -14,6 +14,20 @@ Oeffentliches API:
 - ``matches_whitelist(path, whitelist) -> bool``
 - ``git_commit(repo_root, kind, task_id, actor, run_id=None, push=True,
                source='Web-UI') -> dict``
+
+Push-Retry (BRIDGE-029):
+- Schlaegt ``git push`` mit einem Non-Fast-Forward-Fehler fehl (Muster in
+  ``stderr``/``stdout``: "rejected", "non-fast-forward", "fetch first"),
+  wird genau **ein** Ausgleichsversuch gemacht: ``git fetch origin`` +
+  ``git rebase origin/<branch>``, danach ein weiterer Push-Versuch.
+- Rebase-Konflikt: sofort ``git rebase --abort``, fail-closed, Commit bleibt
+  lokal, kein haengender Rebase-Zustand.
+- Andere Fehlertypen (kein Remote erreichbar, Auth-Fehler usw.) loesen
+  **keinen** Retry aus — dort hilft rebase nichts.
+- Maximal ein Retry-Versuch; scheitert der zweite Push ebenfalls, kein
+  dritter Versuch.
+- Force-Push bleibt kategorisch verboten — auch im Retry-Pfad.
+- Nur relevant fuer push=True (Web-UI); push=False (CLI) ist unveraendert.
 """
 
 from __future__ import annotations
@@ -23,6 +37,10 @@ from pathlib import Path
 
 _GIT_TIMEOUT = 30       # Sekunden, Timeout fuer lokale git-Kommandos
 _GIT_PUSH_TIMEOUT = 60  # Sekunden, Timeout fuer git push (Netz)
+
+# Muster in stderr/stdout, die auf einen Non-Fast-Forward-Push-Fehler hinweisen.
+# Nur bei diesen Mustern wird ein Rebase-Retry ausgeloest (BRIDGE-029).
+_NON_FAST_FORWARD_PATTERNS = ("rejected", "non-fast-forward", "fetch first")
 
 
 def expected_git_files(kind: str, task_id: str,
@@ -165,13 +183,57 @@ def git_commit(repo_root, kind: str, task_id: str, actor: str,
 
     if not push:
         return {"committed": True, "commit": commit_sha, "pushed": False,
-                "error": None}
+                "error": None, "retried": False}
 
     # 6. git push — Force-Push ist kategorisch verboten (nie force/force-with-lease).
     r = _run(["git", "push"], timeout=_GIT_PUSH_TIMEOUT)
-    if r.returncode != 0:
-        err = (r.stderr or r.stdout).strip()
-        return {"committed": True, "commit": commit_sha, "pushed": False,
-                "error": f"git push fehlgeschlagen: {err}"}
+    if r.returncode == 0:
+        return {"committed": True, "commit": commit_sha, "pushed": True,
+                "error": None, "retried": False}
 
-    return {"committed": True, "commit": commit_sha, "pushed": True, "error": None}
+    # Push fehlgeschlagen — Fehlertext aus stderr oder stdout ermitteln.
+    err_text = (r.stderr or r.stdout).strip()
+
+    # 6a. Non-Fast-Forward-Erkennung (BRIDGE-029):
+    #     Nur bei bekannten NFF-Mustern wird ein Rebase-Retry ausgeloest.
+    #     Alle anderen Fehlertypen (kein Remote, Auth usw.) kein Retry.
+    err_lower = err_text.lower()
+    is_non_fast_forward = any(p in err_lower for p in _NON_FAST_FORWARD_PATTERNS)
+
+    if not is_non_fast_forward:
+        return {"committed": True, "commit": commit_sha, "pushed": False,
+                "error": f"git push fehlgeschlagen: {err_text}", "retried": False}
+
+    # 6b. Non-Fast-Forward erkannt — Ausgleichsversuch: fetch + rebase.
+    #     Maximal EIN Retry-Versuch; kein Force-Push.
+    r_fetch = _run(["git", "fetch", "origin"], timeout=_GIT_PUSH_TIMEOUT)
+    if r_fetch.returncode != 0:
+        fetch_err = (r_fetch.stderr or r_fetch.stdout).strip()
+        return {"committed": True, "commit": commit_sha, "pushed": False,
+                "error": f"git fetch fehlgeschlagen (nach NFF): {fetch_err}",
+                "retried": True}
+
+    r_rebase = _run(["git", "rebase", f"origin/{branch}"], timeout=_GIT_TIMEOUT)
+    if r_rebase.returncode != 0:
+        # Rebase-Konflikt: sofort abbrechen, fail-closed, Repo sauber hinterlassen.
+        _run(["git", "rebase", "--abort"], timeout=_GIT_TIMEOUT)
+        rebase_err = (r_rebase.stderr or r_rebase.stdout).strip()
+        return {"committed": True, "commit": commit_sha, "pushed": False,
+                "error": (f"git rebase fehlgeschlagen (Konflikt, rebase --abort "
+                          f"ausgefuehrt): {rebase_err}"),
+                "retried": True}
+
+    # 6c. Rebase erfolgreich — genau ein weiterer Push-Versuch.
+    r2 = _run(["git", "push"], timeout=_GIT_PUSH_TIMEOUT)
+    if r2.returncode != 0:
+        err2 = (r2.stderr or r2.stdout).strip()
+        return {"committed": True, "commit": commit_sha, "pushed": False,
+                "error": f"git push fehlgeschlagen (nach Rebase): {err2}",
+                "retried": True}
+
+    # Commit-SHA nach Rebase aktualisieren (rebase aendert den SHA).
+    r_sha2 = _run(["git", "rev-parse", "--short", "HEAD"])
+    commit_sha = r_sha2.stdout.strip() if r_sha2.returncode == 0 else commit_sha
+
+    return {"committed": True, "commit": commit_sha, "pushed": True,
+            "error": None, "retried": True}

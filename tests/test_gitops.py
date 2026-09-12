@@ -349,5 +349,195 @@ class GitCommitTests(unittest.TestCase):
         self.assertIn("Web-UI", msg)
 
 
+# --------------------------------------------------------------------------- #
+# Push-Retry bei Non-Fast-Forward (BRIDGE-029)
+# --------------------------------------------------------------------------- #
+
+class GitCommitRetryTests(unittest.TestCase):
+    """Prueft den NFF-Retry-Pfad von git_commit() mit echten bare-Repos.
+
+    Infrastruktur identisch zu GitCommitTests (kein doppelter Code):
+    - self.tmp  = working clone (der 'eigene' Klon, git_commit laeuft hier)
+    - self.bare = bare-Repo als 'origin'
+    - self.other = zweiter Klon, simuliert 'jemand anderes hat gepusht'
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="ccb-retry-"))
+        self.bare = Path(tempfile.mkdtemp(prefix="ccb-retry-bare-"))
+        _setup_git_repo(self.tmp)
+        # bare-Repo als lokaler 'origin'
+        _git("clone", "--bare", str(self.tmp), str(self.bare), cwd=self.tmp)
+        _git("remote", "add", "origin", str(self.bare), cwd=self.tmp)
+        _git("push", "--set-upstream", "origin", "main", cwd=self.tmp)
+        # Store-Struktur im Haupt-Klon anlegen und initial pushen
+        for sub in ("tasks/BRIDGE-0902", "audit"):
+            (self.tmp / sub).mkdir(parents=True, exist_ok=True)
+        (self.tmp / "tasks/BRIDGE-0902/task.yaml").write_text("k: v\n", encoding="utf-8")
+        (self.tmp / "audit/audit.jsonl").write_text("", encoding="utf-8")
+        _git("add", "tasks/BRIDGE-0902/task.yaml", "audit/audit.jsonl", cwd=self.tmp)
+        _git("commit", "-m", "initial store files", cwd=self.tmp)
+        _git("push", cwd=self.tmp)
+        # Zweiter Klon NACH dem initialen Push (hat alle Store-Dateien)
+        self.other = Path(tempfile.mkdtemp(prefix="ccb-retry-other-"))
+        _git("clone", str(self.bare), str(self.other), cwd=self.tmp)
+        _git("config", "user.email", "test@example.com", cwd=self.other)
+        _git("config", "user.name", "Test", cwd=self.other)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        shutil.rmtree(self.bare, ignore_errors=True)
+        shutil.rmtree(self.other, ignore_errors=True)
+
+    def _head_sha(self, repo=None):
+        return _git("rev-parse", "HEAD", cwd=repo or self.tmp)
+
+    def _bare_head_sha(self):
+        return _git("rev-parse", "main", cwd=self.bare)
+
+    def _commit_count_bare(self):
+        return int(_git("rev-list", "--count", "main", cwd=self.bare))
+
+    def _other_push(self, filename="README.md", content="other change\n"):
+        """Anderer Klon schreibt eine nicht-konfliktierende Datei und pusht."""
+        (self.other / filename).write_text(content, encoding="utf-8")
+        _git("add", filename, cwd=self.other)
+        _git("commit", "-m", "other commit", cwd=self.other)
+        _git("push", cwd=self.other)
+
+    # --- Erfolgsfall: Retry erfolgreich, beide Commits im Remote-Verlauf ------
+
+    def test_retry_success_on_non_fast_forward(self):
+        """Divergiertes Repo: Retry erkennt NFF, rebased, pushed erfolgreich."""
+        # Zaehle vor dem fremden Push — beide Commits muessen danach im Remote sein
+        before_bare_count = self._commit_count_bare()
+
+        # Anderen Commit vor unserem push() einschieben -> NFF-Situation
+        self._other_push("README.md", "other change\n")
+
+        # Unsere Aenderung in task.yaml und audit
+        (self.tmp / "tasks/BRIDGE-0902/task.yaml").write_text("changed\n", encoding="utf-8")
+        (self.tmp / "audit/audit.jsonl").write_text("log\n", encoding="utf-8")
+
+        result = gitops.git_commit(self.tmp, "task_copied", "BRIDGE-0902",
+                                   "test-actor", push=True)
+
+        self.assertTrue(result["committed"], result.get("error"))
+        self.assertTrue(result["pushed"], result.get("error"))
+        self.assertIsNone(result["error"])
+        self.assertTrue(result["retried"])
+
+        # Beide Commits (fremder + eigener) im bare-Repo vorhanden
+        self.assertEqual(self._commit_count_bare(), before_bare_count + 2)
+
+    # --- Rebase-Konflikt: fail-closed, sauberer Zustand danach ---------------
+
+    def test_retry_rebase_conflict_fail_closed(self):
+        """Inhaltlich widersprüchliche Aenderung -> fail-closed, kein Force-Push,
+        kein haengender Rebase-Zustand."""
+        # Anderer Klon aendert task.yaml (dieselbe Datei, die wir auch aendern)
+        (self.other / "tasks/BRIDGE-0902/task.yaml").write_text("conflict A\n", encoding="utf-8")
+        _git("add", "tasks/BRIDGE-0902/task.yaml", cwd=self.other)
+        _git("commit", "-m", "conflict commit from other", cwd=self.other)
+        _git("push", cwd=self.other)
+
+        # Unsere Aenderung an derselben Datei (-> Rebase-Konflikt)
+        (self.tmp / "tasks/BRIDGE-0902/task.yaml").write_text("conflict B\n", encoding="utf-8")
+        (self.tmp / "audit/audit.jsonl").write_text("log\n", encoding="utf-8")
+
+        result = gitops.git_commit(self.tmp, "task_copied", "BRIDGE-0902",
+                                   "test-actor", push=True)
+
+        self.assertTrue(result["committed"])   # lokal committet
+        self.assertFalse(result["pushed"])     # nicht gepusht
+        self.assertIsNotNone(result["error"])
+        self.assertTrue(result["retried"])
+
+        # Repo darf sich nicht in einem haengenden Rebase-Zustand befinden
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=self.tmp, capture_output=True, text=True, timeout=10,
+        )
+        # Kein 'rebase in progress' — git status gibt bei haengendem Rebase
+        # eigentlich eine Meldung auf stderr; einfachste Pruefung: kein
+        # .git/rebase-merge oder .git/rebase-apply Verzeichnis
+        self.assertFalse((self.tmp / ".git" / "rebase-merge").exists(),
+                         "Haengender Rebase-Zustand nach Konflikt (rebase-merge da)")
+        self.assertFalse((self.tmp / ".git" / "rebase-apply").exists(),
+                         "Haengender Rebase-Zustand nach Konflikt (rebase-apply da)")
+
+    # --- Anderer Fehlertyp: kein Retry ausgeloest ----------------------------
+
+    def test_non_nff_push_failure_no_retry(self):
+        """Nicht erreichbarer Remote -> kein Retry, retried=False."""
+        (self.tmp / "tasks/BRIDGE-0902/task.yaml").write_text("changed\n", encoding="utf-8")
+        (self.tmp / "audit/audit.jsonl").write_text("log\n", encoding="utf-8")
+        _git("remote", "set-url", "origin", "/nonexistent/nowhere", cwd=self.tmp)
+
+        result = gitops.git_commit(self.tmp, "task_copied", "BRIDGE-0902",
+                                   "test-actor", push=True)
+
+        self.assertTrue(result["committed"])
+        self.assertFalse(result["pushed"])
+        self.assertIsNotNone(result["error"])
+        self.assertFalse(result["retried"])
+
+    # --- Zweiter Push-Versuch scheitert ebenfalls: kein dritter Versuch -------
+
+    def test_retry_second_push_also_fails(self):
+        """Zweiter Push (nach erfolgreichem Rebase) schlaegt ebenfalls fehl ->
+        kein dritter Versuch, retried=True, pushed=False.
+
+        Der erste Push schlaegt mit NFF fehl (echter divergierter Zustand).
+        Nach fetch+rebase (echt) wird der zweite Push per Mock abgelehnt,
+        um eine erneute Zwischenkollision zu simulieren, die zwischen Rebase
+        und zweitem Push aus einem Unittest heraus nicht injizierbar ist.
+        """
+        from unittest.mock import patch, MagicMock
+
+        # Anderen Commit einschieben -> NFF beim ersten Push (echt)
+        self._other_push("README.md", "other change 2\n")
+
+        (self.tmp / "tasks/BRIDGE-0902/task.yaml").write_text("changed2\n", encoding="utf-8")
+        (self.tmp / "audit/audit.jsonl").write_text("log2\n", encoding="utf-8")
+
+        real_run = subprocess.run
+        push_calls = [0]
+
+        def intercept(args, **kwargs):
+            """Leitet alle Aufrufe an subprocess.run weiter, ausser den Pushes."""
+            if isinstance(args, (list, tuple)) and len(args) >= 2 \
+                    and args[0] == "git" and args[1] == "push":
+                push_calls[0] += 1
+                if push_calls[0] == 1:
+                    # Erster Push: NFF simulieren (wie echter Fehler)
+                    m = MagicMock()
+                    m.returncode = 1
+                    m.stderr = ("To origin\n"
+                                "! [rejected] main -> main (non-fast-forward)\n"
+                                "error: failed to push some refs")
+                    m.stdout = ""
+                    return m
+                else:
+                    # Zweiter Push (nach Rebase): auch Fehler -> kein dritter
+                    m = MagicMock()
+                    m.returncode = 1
+                    m.stderr = "error: failed to push some refs (second attempt)"
+                    m.stdout = ""
+                    return m
+            return real_run(args, **kwargs)
+
+        with patch("subprocess.run", side_effect=intercept):
+            result = gitops.git_commit(self.tmp, "task_copied", "BRIDGE-0902",
+                                       "test-actor", push=True)
+
+        self.assertTrue(result["committed"])
+        self.assertFalse(result["pushed"])
+        self.assertIsNotNone(result["error"])
+        self.assertTrue(result["retried"])
+        # Genau 2 Push-Versuche, kein dritter
+        self.assertEqual(push_calls[0], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
