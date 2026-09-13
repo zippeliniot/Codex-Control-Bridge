@@ -1,0 +1,56 @@
+schema_version: '1.0'
+kind: bridge_task
+bridge_task_id: BRIDGE-0029
+project_id: codex-control-bridge
+title: Git-Push-Retry (pull --rebase) fuer den geteilten Store
+description: 'Erweitert git_commit() in src/bridge/gitops.py um einen automatischen
+  Ausgleichsversuch bei Non-Fast-Forward-Push-Fehlern (mehrere Projekte/Maschinen
+  teilen sich denselben Store, insbesondere audit/audit.jsonl). Non-Fast-Forward wird
+  anhand von stderr/stdout-Mustern erkannt (rejected, non-fast-forward, fetch first)
+  - andere Fehlertypen (kein Remote, Auth, falscher Branch) loesen KEINEN Retry aus.
+  Bei erkanntem Non-Fast-Forward: git fetch + git rebase origin/<branch>, danach genau
+  EIN weiterer Push-Versuch (kein Backoff, keine Schleife). Schlaegt der Rebase selbst
+  fehl (Konflikt): sofort git rebase --abort, fail-closed, Commit bleibt lokal, Repo
+  danach in sauberem Zustand (kein haengender Rebase). --force/--force-with-lease
+  bleiben an keiner Stelle im Modul vorhanden (bestehender NoForcePushTests-Test bleibt
+  gruen). Neues optionales Rueckgabefeld "retried" (bool) in git_commit(), rueckwaertskompatibel,
+  bestehende Felder (committed, commit, pushed, error) unveraendert. Betrifft nur
+  den push=True-Pfad (Web-UI, gitops.py wird von webui.py mit push=True immer aufgerufen);
+  der CLI-Pfad (cli.py, push=False, pusht nie automatisch) bleibt unveraendert - dort
+  gibt es keinen Push-Versuch, also auch nichts zu wiederholen. Tests mit echtem lokalem
+  bare-Repo (Muster aus tests/test_webui.py, WebUiGitActionTests, wiederverwenden
+  statt neu bauen): divergiertes Repo mit erfolgreichem Retry, sowie echter Rebase-Konflikt
+  mit fail-closed-Verhalten. docs/security/SECURITY-MODEL.md Abschnitt 5c und docs/CCB-STEUERCHAT-REFERENZ.md
+  Teil 4 um das Retry-Verhalten ergaenzen. Details in work-packages/BRIDGE-029.md.'
+task_class: FEATURE
+repository: Codex-Control-Bridge
+branch: main
+git:
+  expected_head: 48a4e8f
+permissions:
+- WORKTREE_WRITE
+- TEST_EXECUTION
+- GIT_PUSH
+depends_on: []
+acceptance_criteria:
+- git_commit() erkennt Non-Fast-Forward-Push-Fehler anhand von stderr/stdout-Mustern
+  (rejected, non-fast-forward, fetch first), andere Fehlertypen loesen keinen Retry
+  aus
+- Bei erkanntem Non-Fast-Forward - git fetch + git rebase origin/<branch>, danach
+  genau ein weiterer Push-Versuch
+- Rebase-Konflikt - git rebase --abort, fail-closed, Commit bleibt lokal, Repo danach
+  in sauberem (nicht haengendem) Zustand
+- Kein Force-Push an keiner Stelle (bestehender NoForcePushTests bleibt gruen)
+- Maximal ein Retry-Versuch - scheitert der zweite Push ebenfalls, kein dritter Versuch
+- Neues Rueckgabefeld retried (bool), rueckwaertskompatibel, bestehende Felder unveraendert
+- Test mit echtem divergiertem bare-Repo - Retry erfolgreich, beide Commits (fremd
+  + eigen) im Remote-Verlauf
+- Test mit echtem Rebase-Konflikt - fail-closed, sauberer Zustand danach
+- Bestehender Non-Retry-Fehlerfall (test_push_failure_commit_stays_local) weiterhin
+  unveraendert gruen
+- SECURITY-MODEL.md Abschnitt 5c und CCB-STEUERCHAT-REFERENZ.md Teil 4 aktualisiert
+- Bestehende Tests weiterhin gruen, neue Tests gruen, frischer Klon verifiziert
+- Jeder Commit sofort gepusht, nicht gesammelt
+status: WAITING_FOR_COPY_TO_CONTROL
+created_at: '2026-09-12T00:00:00Z'
+created_by: browser-claude

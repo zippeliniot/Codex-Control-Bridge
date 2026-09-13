@@ -1,0 +1,34 @@
+schema_version: '1.0'
+kind: bridge_result
+bridge_task_id: BRIDGE-0029
+project_id: codex-control-bridge
+run_id: RUN-01
+status: COMPLETED
+repository: Codex-Control-Bridge
+branch: main
+head: e4ccd40d3b6a03c6d49ebca2d7c521d23d58aac3
+executor: claude-code
+started_at: '2026-09-12T22:32:16Z'
+ended_at: '2026-09-13T09:20:47Z'
+created_by: claude-code@unknown
+base_head: 48a4e8f
+commits:
+- sha: 9690e2240cad3a9edd1af634ca0ab26c75864e04
+  message: 'Work-Package BRIDGE-029: Git-Push-Retry'
+- sha: 8d2c2eb0afaade6428140ece1e5084782d97fe72
+  message: 'BRIDGE-029 RUN-01 Schritt 1: NFF-Push-Retry in gitops.py + Tests'
+- sha: e4ccd40d3b6a03c6d49ebca2d7c521d23d58aac3
+  message: 'BRIDGE-029 RUN-01 Schritt 2: Doku-Updates fuer NFF-Push-Retry'
+changed_files:
+- docs/CCB-STEUERCHAT-REFERENZ.md
+- docs/security/SECURITY-MODEL.md
+- src/bridge/gitops.py
+- tests/test_gitops.py
+- work-packages/BRIDGE-029.md
+summary: git_commit() in gitops.py erkennt Non-Fast-Forward-Push-Fehler (rejected/non-fast-forward/fetch
+  first in stderr) und macht genau einen Ausgleichsversuch (git fetch + git rebase
+  origin/main, dann erneuter Push). Rebase-Konflikt ist fail-closed (rebase --abort,
+  Commit bleibt lokal, kein Force-Push). Andere Fehlertypen (kein Remote, Auth) loesen
+  weiterhin keinen Retry aus. Neues optionales Rueckgabefeld 'retried' in git_commit(),
+  rueckwaertskompatibel. Betrifft nur den push=True-Pfad (Web-UI); CLI-Pfad (push=False)
+  unveraendert.
