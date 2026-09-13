@@ -184,6 +184,27 @@ auf `git diff-tree HEAD` (nur letzter Commit). Ab BRIDGE-025:
 Damit ist `changed_files` in `result.yaml` garantiert vollständig (alle Commits
 seit Taskerstellung, nicht nur der letzte).
 
+**Push-Retry bei Non-Fast-Forward (BRIDGE-029):** Der Web-UI-Pfad in
+`gitops.git_commit(push=True)` macht nach einem fehlgeschlagenen Push
+**genau einen** Ausgleichsversuch, wenn `stderr`/`stdout` ein
+Non-Fast-Forward-Muster enthält (`rejected`, `non-fast-forward`, `fetch
+first`). Der Ablauf: `git fetch origin` → `git rebase origin/main` → ein
+weiterer `git push`. Sicherheitsleitplanken bleiben unverändert:
+
+- **Kein Force-Push** an keiner Stelle — auch nicht im Retry-Pfad.
+- **Maximal ein Retry-Versuch**: scheitert der zweite Push ebenfalls, wird
+  der Fehler wie bei jedem anderen Push-Fehler zurückgegeben; kein dritter
+  Versuch.
+- **Rebase-Konflikt ist fail-closed**: bei einem Merge-Konflikt wird sofort
+  `git rebase --abort` ausgeführt, der Commit bleibt lokal, das Repo danach
+  in sauberem Zustand (kein hängender Rebase).
+- **Andere Fehlertypen** (kein Remote erreichbar, Auth-Fehler, falscher Branch
+  usw.) lösen **keinen** Retry aus — dort hilft `rebase` nichts.
+- **Nur Web-UI-Pfad** (`push=True`): die CLI ruft `git_commit(push=False)` auf,
+  es gibt dort gar keinen Push-Versuch, also auch nichts zu wiederholen.
+- Neues Rückgabefeld `retried: bool` in `git_commit()` — rückwärtskompatibel,
+  bestehende Felder (`committed`, `commit`, `pushed`, `error`) unverändert.
+
 ## 6. Grenzen der ersten Version (Nicht-Ziele)
 
 Zunächst ausdrücklich **nicht** vorgesehen:

@@ -277,6 +277,16 @@ kategorisches `--force`-Verbot. Der Log-Eintrag zeigt das Ergebnis
 direkt (`→ committed <sha>, gepusht` bzw. Fehlertext bei
 Push-Fehlschlag, Commit bleibt dann lokal).
 
+**Push-Retry (BRIDGE-029):** Schlägt der Auto-Push mit Non-Fast-Forward
+fehl (gleichzeitiger Commit einer anderen Maschine/Session), macht die
+Web-UI **genau einen** automatischen Ausgleichsversuch: `git fetch` +
+`git rebase origin/main` + erneuter Push. Gelingt der Rebase und der
+zweite Push → Log zeigt `gepusht (nach Rebase)`, `retried: true`. Kommt
+es zum Rebase-Konflikt → `rebase --abort`, Commit bleibt lokal (Log
+zeigt Fehlertext), kein Force-Push. Andere Fehler (kein Remote, Auth)
+lösen keinen Retry aus. Maximal ein Retry-Versuch; Details in
+`docs/security/SECURITY-MODEL.md` Abschnitt 5c.
+
 **Prioritätszuweisung** (seit BRIDGE-028): In der Gesamtübersicht
 (`/api/overview`) enthält jede Auftragszeile ein `<select>`-Dropdown
 (`HIGH`/`MEDIUM`/`LOW`). Eine Änderung sendet `POST
