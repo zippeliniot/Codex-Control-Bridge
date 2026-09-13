@@ -140,10 +140,12 @@ bereits vorhandene dreifache Absicherung wird als ausreichend bewertet.
   **kein** `git add` ausgeführt und der Commit wird abgebrochen — kein
   Teil-Commit, keine stille Ignorierung.
 
-- **Kein automatisches Konfliktlösen:** Schlägt `git push` fehl (z. B.
-  non-fast-forward), wird der Fehler 1:1 an die UI zurückgemeldet
-  (`pushed: false` + Klartext). Kein automatisches `pull --rebase`, kein
-  `--force`, keine Wiederholung.
+- **Push-Fehlerbehandlung:** Schlägt `git push` fehl, wird der Fehler an
+  die UI zurückgemeldet (`pushed: false` + Klartext). Bei
+  Non-Fast-Forward macht der Web-UI-Pfad seit BRIDGE-029 genau einen
+  automatischen Ausgleichsversuch (siehe Abschnitt 5c) — bei jedem
+  anderen Push-Fehler sowie bei einem zweiten Fehlschlag nach dem Retry
+  bleibt es beim reinen Fehlerreport, kein `--force`.
 
 - **Store-Erfolg und Git-Fehler werden getrennt gemeldet:** Schlägt der
   Git-Teil fehl, bleibt die Store-Aktion (bereits erfolgreich) bestehen.
